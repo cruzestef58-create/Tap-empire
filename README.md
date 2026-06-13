@@ -21,5 +21,5 @@ Un petit jeu de type *Clicker / Idle* : fais évoluer ta civilisation de l'Âge 
 ## 🛠️ Détails techniques
 
 - 100 % HTML / CSS / JavaScript, sans dépendance.
-- Icônes vectorielles maison (SVG) dans le dossier `assets/`.
-- Pour jouer en local : ouvrir `index.html` (garder le dossier `assets/` à côté).
+- Fichier unique et autonome : toutes les icônes vectorielles (SVG) sont intégrées dans `index.html`.
+- Pour jouer en local : il suffit d'ouvrir `index.html` (aucun autre fichier requis).
