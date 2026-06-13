@@ -1,0 +1,884 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tap Empire — Clicker de Civilisation</title>
+<style>
+  :root {
+    --bg:            #211d19;
+    --bg2:           #2f2a23;
+    --panel:         rgba(53, 48, 41, .72);
+    --panel-solid:   #353029;
+    --panel-light:   rgba(64, 58, 49, .85);
+    --beige:         #c9b79c;
+    --beige-dark:    #a8916f;
+    --accent:        #e0a85a;
+    --accent-hover:  #f1bd72;
+    --accent-glow:   rgba(224, 168, 90, .45);
+    --text:          #ece5da;
+    --text-dim:      #b3a895;
+    --good:          #9ec57f;
+    --shadow:        rgba(0,0,0,.4);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body { height: 100%; }
+
+  body {
+    font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background:
+      radial-gradient(circle at 18% -5%, #3d362c 0%, transparent 45%),
+      radial-gradient(circle at 85% 110%, #34403a 0%, transparent 50%),
+      linear-gradient(160deg, var(--bg) 0%, var(--bg2) 100%);
+    background-attachment: fixed;
+    color: var(--text);
+    min-height: 100vh;
+    padding: 28px;
+    -webkit-font-smoothing: antialiased;
+    overflow-x: hidden;
+    transition: background .7s ease;
+  }
+
+  /* Fond : poussières flottantes */
+  .dust {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 0;
+    overflow: hidden;
+  }
+  .dust span {
+    position: absolute;
+    bottom: -10px;
+    width: 4px; height: 4px;
+    background: var(--beige);
+    border-radius: 50%;
+    opacity: .12;
+    animation: rise linear infinite;
+  }
+  @keyframes rise {
+    to { transform: translateY(-110vh) translateX(40px); opacity: 0; }
+  }
+
+  .container {
+    position: relative;
+    z-index: 1;
+    max-width: 1120px;
+    margin: 0 auto;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 26px;
+  }
+
+  .panel {
+    background: var(--panel);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border: 1px solid rgba(255,255,255,.07);
+    border-radius: 22px;
+    padding: 30px;
+    box-shadow: 0 18px 40px var(--shadow);
+  }
+
+  /* ---------- Colonne gauche ---------- */
+  .era-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--panel-light);
+    color: var(--beige);
+    font-size: 14px;
+    letter-spacing: .4px;
+    padding: 9px 18px;
+    border-radius: 999px;
+    border: 1px solid var(--beige-dark);
+    margin-bottom: 22px;
+  }
+  .era-badge b { color: var(--accent); }
+
+  .score-label {
+    font-size: 13px;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    margin-bottom: 4px;
+  }
+  .score {
+    font-size: 48px;
+    font-weight: 800;
+    line-height: 1.05;
+    background: linear-gradient(90deg, var(--text), var(--beige));
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    transition: transform .08s ease;
+  }
+  .score.bump { transform: scale(1.06); }
+  .pps {
+    margin-top: 8px;
+    font-size: 15px;
+    color: var(--good);
+    font-weight: 600;
+  }
+
+  .click-zone {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin-top: 30px;
+  }
+  .click-btn {
+    position: relative;
+    background:
+      radial-gradient(circle at 50% 32%, #4a4338, #2c2820 75%);
+    border: 3px solid var(--beige-dark);
+    border-radius: 50%;
+    width: 250px;
+    height: 250px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: transform .1s cubic-bezier(.34,1.56,.64,1), box-shadow .25s, border-color .25s;
+    box-shadow: 0 0 0 0 var(--accent-glow), 0 14px 30px var(--shadow), inset 0 0 30px rgba(0,0,0,.45);
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+    overflow: visible;
+  }
+  /* anneau de lueur pulsé */
+  .click-btn::after {
+    content: "";
+    position: absolute;
+    inset: -3px;
+    border-radius: 50%;
+    box-shadow: 0 0 35px var(--accent-glow);
+    opacity: .5;
+    animation: pulse 2.6s ease-in-out infinite;
+  }
+  @keyframes pulse { 50% { opacity: .9; } }
+
+  .click-btn img, .click-btn .fallback {
+    width: 155px;
+    height: 155px;
+    pointer-events: none;
+    filter: drop-shadow(0 6px 10px rgba(0,0,0,.55));
+    transition: transform .1s ease;
+  }
+  .click-btn .fallback { font-size: 110px; display:flex; align-items:center; justify-content:center; }
+  .click-btn:hover {
+    transform: scale(1.05);
+    border-color: var(--accent);
+    box-shadow: 0 0 28px var(--accent-glow), 0 18px 36px var(--shadow), inset 0 0 30px rgba(0,0,0,.45);
+  }
+  .click-btn.clicked { animation: squish .18s ease; }
+  @keyframes squish {
+    0%   { transform: scale(.88); }
+    60%  { transform: scale(1.04); }
+    100% { transform: scale(1); }
+  }
+
+  .click-hint { margin-top: 18px; font-size: 13px; color: var(--text-dim); }
+  .click-power-tag {
+    margin-top: 6px;
+    font-size: 13px;
+    color: var(--accent);
+    font-weight: 600;
+  }
+
+  /* +X flottant */
+  .float {
+    position: fixed;
+    font-weight: 800;
+    color: var(--accent);
+    pointer-events: none;
+    animation: floatUp .85s ease-out forwards;
+    font-size: 24px;
+    text-shadow: 0 2px 6px rgba(0,0,0,.6);
+    z-index: 50;
+  }
+  @keyframes floatUp {
+    0%   { opacity: 1; transform: translate(-50%, 0) scale(.8); }
+    25%  { transform: translate(-50%, -14px) scale(1.15); }
+    100% { opacity: 0; transform: translate(-50%, -70px) scale(1); }
+  }
+
+  /* particules */
+  .particle {
+    position: fixed;
+    width: 9px; height: 9px;
+    border-radius: 50%;
+    background: var(--accent);
+    pointer-events: none;
+    z-index: 49;
+    animation: burst .6s ease-out forwards;
+  }
+  @keyframes burst {
+    to { opacity: 0; transform: translate(var(--dx), var(--dy)) scale(.3); }
+  }
+
+  /* ---------- Colonne droite ---------- */
+  .section + .section { margin-top: 26px; }
+  .section-title {
+    display: flex; align-items: center; gap: 8px;
+    font-size: 13px;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    color: var(--text-dim);
+    margin-bottom: 14px;
+  }
+
+  .building {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    background: var(--panel-light);
+    border: 1px solid rgba(255,255,255,.05);
+    border-radius: 15px;
+    padding: 14px 16px;
+    transition: transform .12s ease, border-color .2s, box-shadow .2s;
+  }
+  .building + .building { margin-top: 10px; }
+  .building.affordable { border-color: var(--beige-dark); }
+  .building.affordable:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 20px var(--shadow);
+  }
+  .b-icon {
+    flex: 0 0 46px;
+    width: 46px; height: 46px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 26px;
+    background: rgba(0,0,0,.25);
+    border-radius: 12px;
+  }
+  .b-icon img {
+    width: 32px; height: 32px;
+    object-fit: contain;
+    filter: drop-shadow(0 2px 3px rgba(0,0,0,.5));
+  }
+  /* icône de monnaie à côté du libellé du score */
+  .score-label img {
+    width: 16px; height: 16px;
+    vertical-align: -3px;
+    margin-right: 4px;
+    filter: drop-shadow(0 1px 2px rgba(0,0,0,.5));
+  }
+  .b-info { flex: 1 1 auto; min-width: 0; }
+  .b-info h3 { font-size: 16px; margin-bottom: 2px; }
+  .b-info p { font-size: 12.5px; color: var(--text-dim); }
+  .b-info .owned { color: var(--beige); font-weight: 700; }
+
+  .buy-btn, .evolve-btn {
+    font-family: inherit;
+    font-weight: 700;
+    border: none;
+    border-radius: 11px;
+    cursor: pointer;
+    transition: transform .1s ease, background .2s, opacity .2s, filter .2s;
+    white-space: nowrap;
+  }
+  .buy-btn {
+    flex: 0 0 auto;
+    background: var(--accent);
+    color: #2b2723;
+    padding: 11px 16px;
+    font-size: 13px;
+    line-height: 1.25;
+    text-align: center;
+    min-width: 104px;
+  }
+  .buy-btn small { display:block; font-weight:600; opacity:.85; font-size:11px; }
+  .buy-btn:hover:not(:disabled) { background: var(--accent-hover); transform: scale(1.06); }
+  .buy-btn:active:not(:disabled) { transform: scale(.94); }
+
+  .buy-btn:disabled, .evolve-btn:disabled {
+    background: #46403799;
+    color: var(--text-dim);
+    cursor: not-allowed;
+  }
+
+  /* barre de progression vers l'ère suivante */
+  .evolve-card {
+    background: var(--panel-light);
+    border: 1px solid rgba(255,255,255,.05);
+    border-radius: 15px;
+    padding: 16px;
+  }
+  .progress {
+    height: 10px;
+    background: rgba(0,0,0,.35);
+    border-radius: 999px;
+    overflow: hidden;
+    margin: 12px 0 6px;
+  }
+  .progress-bar {
+    height: 100%;
+    width: 0%;
+    background: linear-gradient(90deg, var(--beige-dark), var(--accent));
+    border-radius: 999px;
+    transition: width .25s ease;
+  }
+  .progress-text { font-size: 12px; color: var(--text-dim); text-align: right; }
+
+  .evolve-btn {
+    width: 100%;
+    background: linear-gradient(135deg, var(--accent), var(--beige-dark));
+    color: #2b2723;
+    padding: 16px;
+    font-size: 15px;
+    margin-top: 12px;
+  }
+  .evolve-btn:hover:not(:disabled) { transform: scale(1.02); filter: brightness(1.1); }
+  .evolve-btn:active:not(:disabled) { transform: scale(.98); }
+
+  /* topbar avec contrôles */
+  .topbar {
+    grid-column: 1 / -1;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+  .title { font-size: 20px; font-weight: 800; letter-spacing: .3px; }
+  .title span { color: var(--accent); }
+  .controls { display: flex; gap: 8px; }
+  .ctrl {
+    font-family: inherit;
+    background: var(--panel);
+    color: var(--text-dim);
+    border: 1px solid rgba(255,255,255,.08);
+    border-radius: 10px;
+    padding: 8px 14px;
+    font-size: 13px;
+    cursor: pointer;
+    transition: color .2s, border-color .2s, transform .1s;
+  }
+  .ctrl:hover { color: var(--text); border-color: var(--beige-dark); }
+  .ctrl:active { transform: scale(.95); }
+
+  /* Toast */
+  .toast {
+    position: fixed;
+    bottom: 30px;
+    left: 50%;
+    transform: translateX(-50%) translateY(20px);
+    background: var(--good);
+    color: #1d2416;
+    font-weight: 700;
+    padding: 16px 26px;
+    border-radius: 14px;
+    box-shadow: 0 14px 34px var(--shadow);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity .3s, transform .3s;
+    max-width: 90%;
+    text-align: center;
+    z-index: 100;
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  /* bonus d'ère */
+  .era-mult {
+    margin-top: 6px;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--accent);
+    letter-spacing: .3px;
+  }
+
+  /* flash plein écran lors d'une évolution */
+  .era-flash {
+    position: fixed; inset: 0;
+    background: radial-gradient(circle, var(--accent-glow) 0%, transparent 70%);
+    pointer-events: none; z-index: 90; opacity: 0;
+    animation: eraFlash 1.1s ease-out forwards;
+  }
+  @keyframes eraFlash { 0% { opacity: .95; } 100% { opacity: 0; } }
+
+  /* apparition d'un bâtiment fraîchement débloqué */
+  @keyframes unlockIn {
+    0%   { opacity: 0; transform: translateY(10px) scale(.96); }
+    100% { opacity: 1; transform: translateY(0) scale(1); }
+  }
+  .building.just-unlocked { animation: unlockIn .5s ease both; }
+
+  /* lueur transmise au bouton central pendant l'évolution */
+  .click-btn.evolving { animation: evolvePop .8s ease; }
+  @keyframes evolvePop {
+    0% { transform: scale(1); }
+    40% { transform: scale(1.18); }
+    100% { transform: scale(1); }
+  }
+
+  .evolve-apex {
+    text-align: center;
+    font-weight: 700;
+    color: var(--accent);
+    padding: 6px 0;
+  }
+
+  @media (max-width: 780px) {
+    .container { grid-template-columns: 1fr; }
+    .score { font-size: 40px; }
+    .click-btn { width: 210px; height: 210px; }
+    .click-btn img, .click-btn .fallback { width: 125px; height: 125px; font-size: 90px; }
+  }
+</style>
+</head>
+<body>
+  <div class="dust" id="dust"></div>
+
+  <div class="container">
+
+    <!-- Barre supérieure -->
+    <div class="topbar">
+      <div class="title">⛰️ Tap <span>Empire</span></div>
+      <div class="controls">
+        <button class="ctrl" id="sound-toggle">🔊 Son</button>
+        <button class="ctrl" id="reset-btn">↺ Réinitialiser</button>
+      </div>
+    </div>
+
+    <!-- ===== Colonne gauche : Action ===== -->
+    <div class="panel">
+      <span class="era-badge">Ère actuelle : <b id="era-name">Âge de Pierre</b></span>
+
+      <div class="score-label"><img src="assets/coin.svg" alt="" onerror="this.style.display='none'">Points de Production</div>
+      <div class="score" id="score">0</div>
+      <div class="pps" id="pps">0 points par seconde (PPS)</div>
+      <div class="era-mult" id="era-mult"></div>
+
+      <div class="click-zone">
+        <div class="click-btn" id="clicker">
+          <img src="assets/gem.svg" alt="Minerai"
+               onerror="this.outerHTML='<div class=&quot;fallback&quot;>💎</div>';">
+        </div>
+        <div class="click-hint">Cliquez sur le minerai pour produire</div>
+        <div class="click-power-tag" id="click-power-tag">+1 par clic</div>
+      </div>
+    </div>
+
+    <!-- ===== Colonne droite : Améliorations ===== -->
+    <div class="panel">
+
+      <div class="section">
+        <div class="section-title">⛏️ Puissance de clic</div>
+        <div class="building" id="b-pick">
+          <div class="b-icon"><img src="assets/rock.svg" alt="" onerror="this.outerHTML='⛏️'"></div>
+          <div class="b-info">
+            <h3>Outil de Pierre Taillée</h3>
+            <p>+1 par clic &middot; Niveau : <span class="owned" id="pick-count">0</span></p>
+          </div>
+          <button class="buy-btn" id="buy-pick">
+            Améliorer<small id="pick-cost">25 pts</small>
+          </button>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="section-title">🏠 Bâtiments (production passive)</div>
+        <div id="buildings"></div>
+      </div>
+
+      <div class="section">
+        <div class="section-title">⚒️ Prochaine Ère</div>
+        <div class="evolve-card" id="evolve-card">
+          <p style="font-size:13.5px;color:var(--text-dim);" id="evolve-desc">
+            Accumulez <b style="color:var(--accent)" id="evolve-cost">500</b> points pour accéder à l'ère
+            <b style="color:var(--accent)" id="evolve-next-name">Âge de Bronze</b>.
+          </p>
+          <div class="progress"><div class="progress-bar" id="evolve-progress"></div></div>
+          <div class="progress-text" id="evolve-progress-text">0 / 500</div>
+          <button class="evolve-btn" id="evolve-btn" disabled>Évoluer vers l'Âge de Bronze</button>
+          <div class="era-mult" id="evolve-bonus" style="text-align:center;color:var(--good);margin-top:8px;"></div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+<script>
+  // ===================== Données du jeu =====================
+  // Chaque ère : nom, minerai central, palette d'ambiance et bonus de production global.
+  const ERAS = [
+    { name: 'Âge de Pierre',    central: 'assets/gem.svg',    fb: '💎', mult: 1,
+      accent:'#e0a85a', accentHover:'#f1bd72', glow:'rgba(224,168,90,.45)', beige:'#c9b79c', beigeDark:'#a8916f', bg:'#211d19', bg2:'#2f2a23' },
+    { name: 'Âge de Bronze',    central: 'assets/ingot.svg',  fb: '🟫', mult: 5,
+      accent:'#cd7f32', accentHover:'#e0974a', glow:'rgba(205,127,50,.5)',  beige:'#d8b78f', beigeDark:'#a87c4a', bg:'#241a12', bg2:'#34261a' },
+    { name: 'Âge de Fer',       central: 'assets/anvil.svg',  fb: '⚒️', mult: 25,
+      accent:'#8fa3b0', accentHover:'#aebfca', glow:'rgba(143,163,176,.45)',beige:'#b9c4cc', beigeDark:'#6c7884', bg:'#181b1e', bg2:'#23282d' },
+    { name: 'Antiquité',        central: 'assets/column.svg', fb: '🏛️', mult: 125,
+      accent:'#d9c074', accentHover:'#ecd488', glow:'rgba(217,192,116,.45)',beige:'#e6dcb8', beigeDark:'#b0a05c', bg:'#1d1b12', bg2:'#2b281a' },
+    { name: 'Ère Industrielle', central: 'assets/gear.svg',   fb: '⚙️', mult: 625,
+      accent:'#c0712f', accentHover:'#d98c46', glow:'rgba(192,113,47,.5)',  beige:'#c9a98c', beigeDark:'#8a6038', bg:'#161310', bg2:'#221c16' },
+  ];
+  // Coût pour passer de l'ère i à i+1 (longueur = ERAS.length - 1).
+  const EVOLVE_COSTS = [500, 25000, 900000, 25000000];
+
+  const PICK = { base: 25, growth: 1.6, power: 1 }; // amélioration de clic
+
+  // Bâtiments. `era` = ère à partir de laquelle le bâtiment est débloqué.
+  const BUILDINGS = [
+    // --- Âge de Pierre ---
+    { id: 'hut',     era: 0, img: 'assets/herb.svg',     fb: '🌿', name: 'Hutte de Cueilleurs',       base: 50,        growth: 1.15, pps: 1 },
+    { id: 'mush',    era: 0, img: 'assets/mushroom.svg', fb: '🍄', name: 'Ramasseurs de Champignons', base: 250,       growth: 1.15, pps: 5 },
+    { id: 'fire',    era: 0, img: 'assets/fire.svg',     fb: '🔥', name: 'Feu de Camp',               base: 1100,      growth: 1.16, pps: 20 },
+    { id: 'mine',    era: 0, img: 'assets/crystal.svg',  fb: '💠', name: 'Mine de Cristaux',          base: 6000,      growth: 1.17, pps: 90 },
+    { id: 'shaman',  era: 0, img: 'assets/orb.svg',      fb: '🔮', name: 'Hutte du Chaman',           base: 30000,     growth: 1.18, pps: 400 },
+    // --- Âge de Bronze ---
+    { id: 'foundry', era: 1, img: 'assets/furnace.svg',  fb: '🏭', name: 'Fonderie de Bronze',        base: 60000,     growth: 1.16, pps: 1500 },
+    { id: 'potter',  era: 1, img: 'assets/vase.svg',     fb: '🏺', name: 'Atelier de Potier',         base: 250000,    growth: 1.17, pps: 6000 },
+    // --- Âge de Fer ---
+    { id: 'forge',   era: 2, img: 'assets/forge.svg',    fb: '⚒️', name: 'Forge de Fer',              base: 1200000,   growth: 1.17, pps: 30000 },
+    { id: 'barracks',era: 2, img: 'assets/shield.svg',   fb: '🛡️', name: 'Caserne',                   base: 6000000,   growth: 1.18, pps: 130000 },
+    // --- Antiquité ---
+    { id: 'market',  era: 3, img: 'assets/market.svg',   fb: '🏪', name: 'Marché',                    base: 40000000,  growth: 1.18, pps: 700000 },
+    { id: 'temple',  era: 3, img: 'assets/temple.svg',   fb: '🏛️', name: 'Temple',                    base: 200000000, growth: 1.19, pps: 3500000 },
+    // --- Ère Industrielle ---
+    { id: 'factory', era: 4, img: 'assets/factory.svg',  fb: '🏭', name: 'Usine à Vapeur',            base: 1500000000,growth: 1.19, pps: 25000000 },
+    { id: 'coal',    era: 4, img: 'assets/coal.svg',     fb: '⚫', name: 'Mine de Charbon',           base: 8000000000,growth: 1.20, pps: 120000000 },
+  ];
+
+  // ===================== État =====================
+  const defaultState = () => ({
+    score: 0,
+    clickPower: 1,
+    pickLevel: 0,
+    era: 0,
+    buildings: Object.fromEntries(BUILDINGS.map(b => [b.id, 0])),
+    sound: true,
+  });
+  let state = load() || defaultState();
+
+  function costOf(b)   { return Math.ceil(b.base * Math.pow(b.growth, state.buildings[b.id])); }
+  function pickCost()  { return Math.ceil(PICK.base * Math.pow(PICK.growth, state.pickLevel)); }
+  function eraMult()   { return ERAS[state.era].mult; }
+  function unlocked(b) { return b.era <= state.era; }
+  // PPS de base (somme des bâtiments débloqués) puis valeurs effectives avec le bonus d'ère.
+  function basePPS()   { return BUILDINGS.reduce((s,b) => unlocked(b) ? s + b.pps * state.buildings[b.id] : s, 0); }
+  function effPPS()    { return basePPS() * eraMult(); }
+  function effClick()  { return state.clickPower * eraMult(); }
+
+  // ===================== DOM =====================
+  const el = {
+    score:        document.getElementById('score'),
+    pps:          document.getElementById('pps'),
+    eraName:      document.getElementById('era-name'),
+    eraMult:      document.getElementById('era-mult'),
+    clicker:      document.getElementById('clicker'),
+    clickTag:     document.getElementById('click-power-tag'),
+    pickCount:    document.getElementById('pick-count'),
+    pickCost:     document.getElementById('pick-cost'),
+    buyPick:      document.getElementById('buy-pick'),
+    bPick:        document.getElementById('b-pick'),
+    buildings:    document.getElementById('buildings'),
+    evolveCard:   document.getElementById('evolve-card'),
+    evolveDesc:   document.getElementById('evolve-desc'),
+    evolveCost:   document.getElementById('evolve-cost'),
+    evolveNext:   document.getElementById('evolve-next-name'),
+    evolveBtn:    document.getElementById('evolve-btn'),
+    evolveProg:   document.getElementById('evolve-progress'),
+    evolveProgTx: document.getElementById('evolve-progress-text'),
+    evolveBonus:  document.getElementById('evolve-bonus'),
+    toast:        document.getElementById('toast'),
+    soundToggle:  document.getElementById('sound-toggle'),
+    resetBtn:     document.getElementById('reset-btn'),
+  };
+
+  // Génère les lignes de bâtiments une seule fois (cachées tant que l'ère n'est pas atteinte)
+  BUILDINGS.forEach(b => {
+    const row = document.createElement('div');
+    row.className = 'building';
+    row.id = 'b-' + b.id;
+    row.dataset.era = b.era;
+    row.innerHTML = `
+      <div class="b-icon"><img src="${b.img}" alt="" onerror="this.outerHTML='${b.fb}'"></div>
+      <div class="b-info">
+        <h3>${b.name}</h3>
+        <p>+${fmt(b.pps)} PPS &middot; Possédés : <span class="owned" id="${b.id}-count">0</span></p>
+      </div>
+      <button class="buy-btn" id="buy-${b.id}">Acheter<small id="${b.id}-cost"></small></button>`;
+    el.buildings.appendChild(row);
+    document.getElementById('buy-' + b.id).addEventListener('click', () => buyBuilding(b));
+  });
+
+  // ===================== Formatage =====================
+  function fmt(n) {
+    n = Math.floor(n);
+    const abs = Math.abs(n);
+    for (const [exp, suf] of [[1e15,' Bd'],[1e12,' Bn'],[1e9,' Md'],[1e6,' M']]) {
+      if (abs >= exp) return (n/exp).toFixed(2).replace('.', ',') + suf;
+    }
+    return n.toLocaleString('fr-FR');
+  }
+
+  // ===================== Rendu =====================
+  function render() {
+    const mult = eraMult();
+    el.score.textContent = fmt(state.score);
+    el.pps.textContent = fmt(effPPS()) + ' points par seconde (PPS)';
+    el.clickTag.textContent = '+' + fmt(effClick()) + ' par clic';
+    el.eraMult.textContent = mult > 1 ? 'Bonus d’ère : ×' + mult : '';
+
+    // Amélioration de clic
+    el.pickCount.textContent = state.pickLevel;
+    el.pickCost.textContent = fmt(pickCost()) + ' pts';
+    const canPick = state.score >= pickCost();
+    el.buyPick.disabled = !canPick;
+    el.bPick.classList.toggle('affordable', canPick);
+
+    // Bâtiments : masqués tant que l'ère n'est pas atteinte
+    BUILDINGS.forEach(b => {
+      const row = document.getElementById('b-' + b.id);
+      if (!unlocked(b)) { row.style.display = 'none'; return; }
+      row.style.display = '';
+      const c = costOf(b);
+      document.getElementById(b.id + '-count').textContent = state.buildings[b.id];
+      document.getElementById(b.id + '-cost').textContent = fmt(c) + ' pts';
+      const can = state.score >= c;
+      document.getElementById('buy-' + b.id).disabled = !can;
+      row.classList.toggle('affordable', can);
+    });
+
+    // Panneau « Prochaine Ère »
+    const isLast = state.era >= ERAS.length - 1;
+    if (isLast) {
+      el.evolveDesc.innerHTML = '🏆 Votre civilisation a atteint son <b style="color:var(--accent)">apogée</b> (ère la plus avancée).';
+      el.evolveProg.style.width = '100%';
+      el.evolveProgTx.textContent = '';
+      el.evolveBtn.disabled = true;
+      el.evolveBtn.textContent = 'Apogée atteinte';
+      el.evolveBonus.textContent = '';
+    } else {
+      const cost = EVOLVE_COSTS[state.era];
+      const next = ERAS[state.era + 1];
+      el.evolveCost.textContent = fmt(cost);
+      el.evolveNext.textContent = next.name;
+      const pct = Math.min(100, state.score / cost * 100);
+      el.evolveProg.style.width = pct + '%';
+      el.evolveProgTx.textContent = fmt(Math.min(state.score, cost)) + ' / ' + fmt(cost);
+      el.evolveBtn.disabled = state.score < cost;
+      el.evolveBtn.textContent = 'Évoluer vers ' + next.name;
+      el.evolveBonus.textContent = 'Bonus de production ×' + next.mult + ' + 2 nouveaux bâtiments';
+    }
+
+    el.soundToggle.textContent = state.sound ? '🔊 Son' : '🔇 Muet';
+  }
+
+  // ===================== Achats =====================
+  function buyBuilding(b) {
+    if (!unlocked(b)) return;
+    const c = costOf(b);
+    if (state.score < c) return;
+    state.score -= c;
+    state.buildings[b.id]++;
+    blip(420);
+    render(); save();
+  }
+
+  el.buyPick.addEventListener('click', () => {
+    const c = pickCost();
+    if (state.score < c) return;
+    state.score -= c;
+    state.pickLevel++;
+    state.clickPower += PICK.power;
+    blip(520);
+    render(); save();
+  });
+
+  // ===================== Clic principal =====================
+  function bumpScore() {
+    el.score.classList.add('bump');
+    setTimeout(() => el.score.classList.remove('bump'), 90);
+  }
+
+  el.clicker.addEventListener('pointerdown', (e) => {
+    const gain = effClick();
+    state.score += gain;
+    el.clicker.classList.remove('clicked');
+    void el.clicker.offsetWidth;       // reflow pour rejouer l'anim
+    el.clicker.classList.add('clicked');
+    bumpScore();
+    spawnFloat(e.clientX, e.clientY, '+' + fmt(gain));
+    spawnParticles(e.clientX, e.clientY);
+    clickSound();
+    render();
+  });
+
+  function spawnFloat(x, y, text) {
+    const f = document.createElement('div');
+    f.className = 'float';
+    f.textContent = text;
+    f.style.left = x + 'px';
+    f.style.top = y + 'px';
+    document.body.appendChild(f);
+    setTimeout(() => f.remove(), 850);
+  }
+
+  function spawnParticles(x, y) {
+    const n = 8;
+    for (let i = 0; i < n; i++) {
+      const p = document.createElement('div');
+      p.className = 'particle';
+      const angle = (Math.PI * 2 * i) / n + Math.random() * .5;
+      const dist = 40 + Math.random() * 40;
+      p.style.left = x + 'px';
+      p.style.top = y + 'px';
+      p.style.setProperty('--dx', Math.cos(angle) * dist + 'px');
+      p.style.setProperty('--dy', Math.sin(angle) * dist + 'px');
+      p.style.background = Math.random() > .5 ? 'var(--accent)' : 'var(--beige)';
+      document.body.appendChild(p);
+      setTimeout(() => p.remove(), 600);
+    }
+  }
+
+  // ===================== Évolution d'ère =====================
+  // Applique l'ambiance visuelle de l'ère courante (palette, fond, minerai, nom).
+  function applyEra() {
+    const e = ERAS[state.era];
+    const r = document.documentElement.style;
+    r.setProperty('--accent', e.accent);
+    r.setProperty('--accent-hover', e.accentHover);
+    r.setProperty('--accent-glow', e.glow);
+    r.setProperty('--beige', e.beige);
+    r.setProperty('--beige-dark', e.beigeDark);
+    r.setProperty('--bg', e.bg);
+    r.setProperty('--bg2', e.bg2);
+    el.eraName.textContent = e.name;
+    const img = el.clicker.querySelector('img');
+    if (img) img.src = e.central;   // (si l'image avait échoué, l'emoji de repli reste)
+  }
+
+  function flashEra() {
+    const f = document.createElement('div');
+    f.className = 'era-flash';
+    document.body.appendChild(f);
+    setTimeout(() => f.remove(), 1100);
+    el.clicker.classList.remove('evolving');
+    void el.clicker.offsetWidth;
+    el.clicker.classList.add('evolving');
+  }
+
+  el.evolveBtn.addEventListener('click', () => {
+    if (state.era >= ERAS.length - 1) return;
+    const cost = EVOLVE_COSTS[state.era];
+    if (state.score < cost) return;
+
+    state.score -= cost;
+    state.era++;
+    const e = ERAS[state.era];
+
+    applyEra();
+    flashEra();
+    showToast('🎉 Nouvelle ère : ' + e.name + ' ! Production globale ×' + e.mult);
+    blip(720);
+    render();   // rend visibles les nouveaux bâtiments
+
+    // Puis met en évidence ceux fraîchement débloqués
+    BUILDINGS.filter(b => b.era === state.era).forEach(b => {
+      const row = document.getElementById('b-' + b.id);
+      row.classList.remove('just-unlocked');
+      void row.offsetWidth;
+      row.classList.add('just-unlocked');
+    });
+    save();
+  });
+
+  function showToast(msg) {
+    el.toast.textContent = msg;
+    el.toast.classList.add('show');
+    clearTimeout(showToast._t);
+    showToast._t = setTimeout(() => el.toast.classList.remove('show'), 4200);
+  }
+
+  // ===================== Son (Web Audio) =====================
+  let audioCtx;
+  function ensureAudio() {
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+  }
+  function tone(freq, dur, type, vol) {
+    if (!state.sound) return;
+    ensureAudio();
+    const o = audioCtx.createOscillator();
+    const g = audioCtx.createGain();
+    o.type = type || 'triangle';
+    o.frequency.value = freq;
+    g.gain.setValueAtTime(vol || .14, audioCtx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + dur);
+    o.connect(g).connect(audioCtx.destination);
+    o.start();
+    o.stop(audioCtx.currentTime + dur);
+  }
+  function clickSound() {
+    // petite variation de hauteur pour un clic vivant
+    tone(300 + Math.random() * 120, .08, 'square', .12);
+  }
+  function blip(freq) { tone(freq, .15, 'triangle', .16); }
+
+  el.soundToggle.addEventListener('click', () => {
+    state.sound = !state.sound;
+    if (state.sound) { ensureAudio(); blip(600); }
+    render(); save();
+  });
+
+  // ===================== Sauvegarde =====================
+  function save() {
+    try { localStorage.setItem('civ-save', JSON.stringify(state)); } catch(e){}
+  }
+  function load() {
+    try {
+      const raw = localStorage.getItem('civ-save');
+      if (!raw) return null;
+      const s = JSON.parse(raw);
+      const base = defaultState();           // fusion pour compat. futures
+      base.buildings = Object.assign(base.buildings, s.buildings || {});
+      return Object.assign(base, s, { buildings: base.buildings });
+    } catch(e) { return null; }
+  }
+
+  el.resetBtn.addEventListener('click', () => {
+    if (confirm('Réinitialiser toute votre progression ?')) {
+      state = defaultState();
+      applyEra(); save(); render();
+      showToast('Progression réinitialisée.');
+    }
+  });
+
+  // ===================== Boucles =====================
+  // Production passive (10x/s, prorata)
+  setInterval(() => {
+    const gain = effPPS() / 10;
+    if (gain > 0) { state.score += gain; render(); }
+  }, 100);
+
+  // Sauvegarde auto toutes les 10 s
+  setInterval(save, 10000);
+  window.addEventListener('beforeunload', save);
+
+  // ===================== Décor : poussières =====================
+  (function makeDust(){
+    const host = document.getElementById('dust');
+    for (let i = 0; i < 30; i++) {
+      const s = document.createElement('span');
+      s.style.left = Math.random() * 100 + 'vw';
+      s.style.animationDuration = (14 + Math.random() * 16) + 's';
+      s.style.animationDelay = (-Math.random() * 20) + 's';
+      const sz = 2 + Math.random() * 4;
+      s.style.width = s.style.height = sz + 'px';
+      host.appendChild(s);
+    }
+  })();
+
+  // ===================== Démarrage =====================
+  applyEra();   // restaure l'ambiance de l'ère sauvegardée
+  render();
+</script>
+</body>
+</html>
