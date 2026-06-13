@@ -443,6 +443,46 @@
   }
   .buy-btn.done:hover { transform: none; filter: none; }
 
+  /* Pillage / Raids */
+  .raid-card {
+    background: var(--panel-light);
+    border: 1px solid rgba(255,255,255,.05);
+    border-radius: 15px;
+    padding: 16px;
+  }
+  .raid-force { font-size: 13px; color: var(--text-dim); margin-bottom: 10px; }
+  .raid-force b { color: #e08a6a; }
+  .raid-hint { font-size: 12px; color: #e8b; margin-bottom: 10px; }
+  .raid-name { font-size: 16px; font-weight: 700; margin-bottom: 8px; }
+  .raid-stats { display: flex; gap: 18px; flex-wrap: wrap; font-size: 13px; color: var(--text-dim); margin-bottom: 8px; }
+  .raid-stats b { color: var(--beige); }
+  .raid-chance { font-size: 13px; color: var(--text-dim); }
+  .raid-chance b { color: var(--accent); }
+  .raid-bar { height: 8px; background: rgba(0,0,0,.35); border-radius: 999px; overflow: hidden; margin: 6px 0 12px; }
+  .raid-bar div { height: 100%; background: linear-gradient(90deg,#cf4a3f,#e0a85a,#9ec57f); border-radius: 999px; transition: width .25s; }
+  .raid-actions { display: flex; gap: 8px; }
+  .raid-btn {
+    font-family: inherit; font-weight: 700; border: none; border-radius: 11px;
+    cursor: pointer; padding: 12px 16px; font-size: 14px;
+    transition: transform .1s, filter .2s, background .2s;
+  }
+  .raid-btn.search { width: 100%; background: linear-gradient(135deg,#cf4a3f,#a8916f); color: #2b2723; }
+  .raid-btn.attack { flex: 1; background: #cf4a3f; color: #fff; }
+  #raid-skip { background: var(--panel); color: var(--text-dim); border: 1px solid rgba(255,255,255,.1); }
+  .raid-btn:hover:not(:disabled) { filter: brightness(1.1); transform: scale(1.03); }
+  .raid-btn:active:not(:disabled) { transform: scale(.96); }
+  .raid-btn:disabled { background: #46403799; color: var(--text-dim); cursor: not-allowed; }
+  .raid-result { margin-top: 12px; font-size: 13px; font-weight: 600; padding: 10px; border-radius: 10px; text-align: center; }
+  .raid-result.win { background: rgba(150,190,115,.18); color: var(--good); }
+  .raid-result.lose { background: rgba(207,74,63,.18); color: #e8918a; }
+  .raid-tally { margin-top: 10px; font-size: 12px; color: var(--text-dim); text-align: center; }
+  .raid-card.shake { animation: shake .4s; }
+  @keyframes shake {
+    0%,100% { transform: translateX(0); }
+    20% { transform: translateX(-7px); } 40% { transform: translateX(7px); }
+    60% { transform: translateX(-4px); } 80% { transform: translateX(4px); }
+  }
+
   @media (max-width: 780px) {
     .container { grid-template-columns: 1fr; }
     .score { font-size: 40px; }
@@ -510,6 +550,11 @@
       <div class="section">
         <div class="section-title">🦸 Héros (Force unique)</div>
         <div id="heroes"></div>
+      </div>
+
+      <div class="section">
+        <div class="section-title">⚔️ Pillage de villages</div>
+        <div class="raid-card" id="raid-card"></div>
       </div>
 
       <div class="section">
@@ -596,6 +641,16 @@
       svg:`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><circle cx="32" cy="32" r="27" fill="#c0712f" stroke="#5a3414" stroke-width="3"/><circle cx="32" cy="28" r="12" fill="#ffe9a8" stroke="#2e2418" stroke-width="2.4"/><rect x="27" y="40" width="10" height="7" rx="2" fill="#8a9298" stroke="#2e2418" stroke-width="2.2"/><path d="M28 26 L32 31 L36 26" fill="none" stroke="#c0712f" stroke-width="2"/></svg>` },
   ];
 
+  // ===================== Pillage =====================
+  const RAID_COOLDOWN = 10000;   // ms de récupération entre deux attaques
+  const V_PREFIX = ['Village','Hameau','Bourg','Camp','Clan','Tribu','Fort','Cité'];
+  const V_NAME = ['des Loups','de Pierre','du Nord','Sombre','d’Argile','Rouge','des Brumes',
+                  'du Vent','de l’Aigle','des Cendres','du Roc','d’Émeraude','du Lac','des Sangliers','Maudit'];
+  function randomVillageName() {
+    return V_PREFIX[Math.floor(Math.random() * V_PREFIX.length)] + ' ' +
+           V_NAME[Math.floor(Math.random() * V_NAME.length)];
+  }
+
   // ===================== État =====================
   const defaultState = () => ({
     score: 0,
@@ -604,6 +659,12 @@
     era: 0,
     buildings: Object.fromEntries(BUILDINGS.map(b => [b.id, 0])),
     heroes: {},          // { idHéros: true } pour les héros recrutés
+    raid: null,          // village cible actuel { name, defense, loot }
+    nextRaidTime: 0,     // timestamp avant la prochaine attaque possible
+    raidWins: 0,
+    raidLosses: 0,
+    raidMsg: '',
+    raidMsgWin: false,
     sound: true,
   });
   let state = load() || defaultState();
@@ -628,6 +689,7 @@
     eraMult:      document.getElementById('era-mult'),
     forceLine:    document.getElementById('force-line'),
     heroes:       document.getElementById('heroes'),
+    raidCard:     document.getElementById('raid-card'),
     clicker:      document.getElementById('clicker'),
     clickTag:     document.getElementById('click-power-tag'),
     pickCount:    document.getElementById('pick-count'),
@@ -766,6 +828,14 @@
       el.evolveBonus.textContent = 'Bonus de production ×' + next.mult + ' + 2 nouveaux bâtiments';
     }
 
+    // Décompte de récupération du raid (mise à jour légère, sans reconstruire le panneau)
+    const ab = document.getElementById('raid-attack');
+    if (ab) {
+      const cd = state.nextRaidTime - Date.now();
+      if (cd > 0) { ab.disabled = true; ab.textContent = '⏳ ' + Math.ceil(cd / 1000) + 's'; }
+      else if (ab.disabled) { ab.disabled = false; ab.textContent = '⚔️ Attaquer'; }
+    }
+
     el.soundToggle.textContent = state.sound ? '🔊 Son' : '🔇 Muet';
   }
 
@@ -786,8 +856,84 @@
     state.heroes[h.id] = true;
     blip(660);
     showToast('🦸 ' + h.name + ' rejoint ton empire ! +' + fmt(h.force) + ' Force');
-    render(); save();
+    renderRaid(); render(); save();
   }
+
+  // ===================== Pillage =====================
+  function winChance(defense) {
+    const F = forceTotal();
+    return (F + defense) > 0 ? F / (F + defense) : 0;
+  }
+
+  function searchVillage() {
+    const F = forceTotal();
+    const base = Math.max(10, F);
+    const defense = Math.round(base * (0.5 + Math.random() * 1.3));
+    const sec = 25 + Math.random() * 55;                       // butin ≈ 25–80 s de production
+    const loot = Math.round(effPPS() * sec + 50 + defense * 4);
+    state.raid = { name: randomVillageName(), defense, loot };
+    renderRaid(); save();
+  }
+
+  function attackVillage() {
+    if (!state.raid || Date.now() < state.nextRaidTime) return;
+    const t = state.raid;
+    const win = Math.random() < winChance(t.defense);
+    if (win) {
+      state.score += t.loot;
+      state.raidWins++;
+      state.raidMsg = '🏆 Victoire ! Tu as pillé ' + fmt(t.loot) + ' points à ' + t.name + '.';
+      state.raidMsgWin = true;
+      blip(820);
+    } else {
+      state.raidLosses++;
+      state.raidMsg = '💥 Défaite… ' + t.name + ' a repoussé ton attaque. Recrute des héros pour plus de Force.';
+      state.raidMsgWin = false;
+      blip(170);
+      el.raidCard.classList.remove('shake'); void el.raidCard.offsetWidth; el.raidCard.classList.add('shake');
+    }
+    showToast(state.raidMsg);
+    state.raid = null;                                   // village consommé
+    state.nextRaidTime = Date.now() + RAID_COOLDOWN;
+    renderRaid(); render(); save();
+  }
+
+  // Construit le contenu du panneau (appelé seulement quand l'état du raid change)
+  function renderRaid() {
+    const F = forceTotal();
+    let html = `<div class="raid-force">💪 Ta Force d'attaque : <b>${fmt(F)}</b></div>`;
+    if (F <= 0) html += `<div class="raid-hint">Recrute des héros pour gagner de la Force et pouvoir piller !</div>`;
+
+    if (!state.raid) {
+      html += `<button class="raid-btn search" id="raid-search">🔍 Chercher un village à piller</button>`;
+    } else {
+      const t = state.raid;
+      const pct = Math.round(winChance(t.defense) * 100);
+      const cd = state.nextRaidTime - Date.now();
+      html += `
+        <div class="raid-name">🏰 ${t.name}</div>
+        <div class="raid-stats">
+          <span>🛡️ Défense : <b>${fmt(t.defense)}</b></span>
+          <span>💰 Butin : <b>${fmt(t.loot)}</b></span>
+        </div>
+        <div class="raid-chance">Chances de victoire : <b>${pct}%</b></div>
+        <div class="raid-bar"><div style="width:${pct}%"></div></div>
+        <div class="raid-actions">
+          <button class="raid-btn attack" id="raid-attack" ${cd > 0 ? 'disabled' : ''}>${cd > 0 ? '⏳ ' + Math.ceil(cd / 1000) + 's' : '⚔️ Attaquer'}</button>
+          <button class="raid-btn" id="raid-skip">↻ Autre</button>
+        </div>`;
+    }
+    if (state.raidMsg) html += `<div class="raid-result ${state.raidMsgWin ? 'win' : 'lose'}">${state.raidMsg}</div>`;
+    html += `<div class="raid-tally">Victoires : ${state.raidWins} &middot; Défaites : ${state.raidLosses}</div>`;
+    el.raidCard.innerHTML = html;
+  }
+
+  // Délégation : un seul écouteur sur le conteneur (survit aux reconstructions innerHTML)
+  el.raidCard.addEventListener('click', (e) => {
+    const id = e.target.id;
+    if (id === 'raid-search' || id === 'raid-skip') searchVillage();
+    else if (id === 'raid-attack') attackVillage();
+  });
 
   el.buyPick.addEventListener('click', () => {
     const c = pickCost();
@@ -807,7 +953,7 @@
 
   el.clicker.addEventListener('pointerdown', (e) => {
     const gain = effClick();
-    state.score += gain;
+    if (Number.isFinite(gain)) state.score += gain;
     el.clicker.classList.remove('clicked');
     void el.clicker.offsetWidth;       // reflow pour rejouer l'anim
     el.clicker.classList.add('clicked');
@@ -894,6 +1040,7 @@
       void row.offsetWidth;
       row.classList.add('just-unlocked');
     });
+    renderRaid();   // la Force d'attaque/affichage suit l'ère
     save();
   });
 
@@ -947,14 +1094,34 @@
       const base = defaultState();           // fusion pour compat. futures
       base.buildings = Object.assign(base.buildings, s.buildings || {});
       base.heroes = Object.assign(base.heroes, s.heroes || {});
-      return Object.assign(base, s, { buildings: base.buildings, heroes: base.heroes });
+      const st = Object.assign(base, s, { buildings: base.buildings, heroes: base.heroes });
+
+      // Réparation d'une sauvegarde corrompue (NaN / Infinity / valeurs hors limites)
+      if (!Number.isFinite(st.score) || st.score < 0)        st.score = 0;
+      if (!Number.isFinite(st.clickPower) || st.clickPower < 1) st.clickPower = 1;
+      if (!Number.isInteger(st.pickLevel) || st.pickLevel < 0)  st.pickLevel = 0;
+      if (!Number.isInteger(st.era))                          st.era = 0;
+      st.era = Math.min(Math.max(st.era, 0), ERAS.length - 1);
+      BUILDINGS.forEach(b => {
+        const v = st.buildings[b.id];
+        st.buildings[b.id] = (Number.isFinite(v) && v >= 0) ? Math.floor(v) : 0;
+      });
+      if (!st.heroes || typeof st.heroes !== 'object') st.heroes = {};
+      // Champs de pillage
+      if (!Number.isFinite(st.nextRaidTime)) st.nextRaidTime = 0;
+      if (!Number.isFinite(st.raidWins)   || st.raidWins   < 0) st.raidWins   = 0;
+      if (!Number.isFinite(st.raidLosses) || st.raidLosses < 0) st.raidLosses = 0;
+      if (typeof st.raidMsg !== 'string') st.raidMsg = '';
+      if (!st.raid || typeof st.raid !== 'object' ||
+          !Number.isFinite(st.raid.defense) || !Number.isFinite(st.raid.loot)) st.raid = null;
+      return st;
     } catch(e) { return null; }
   }
 
   el.resetBtn.addEventListener('click', () => {
     if (confirm('Réinitialiser toute votre progression ?')) {
       state = defaultState();
-      applyEra(); save(); render();
+      applyEra(); renderRaid(); save(); render();
       showToast('Progression réinitialisée.');
     }
   });
@@ -963,7 +1130,9 @@
   // Production passive (10x/s, prorata)
   setInterval(() => {
     const gain = effPPS() / 10;
-    if (gain > 0) { state.score += gain; render(); }
+    if (Number.isFinite(gain) && gain > 0) state.score += gain;
+    if (!Number.isFinite(state.score)) state.score = 0;   // garde-fou anti-NaN
+    render();   // toujours rafraîchir (décompte du raid, boutons…)
   }, 100);
 
   // Sauvegarde auto toutes les 10 s
@@ -986,6 +1155,7 @@
 
   // ===================== Démarrage =====================
   applyEra();   // restaure l'ambiance de l'ère sauvegardée
+  renderRaid();
   render();
 </script>
 </body>
