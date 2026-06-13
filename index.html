@@ -421,6 +421,28 @@
     padding: 6px 0;
   }
 
+  /* Héros & Force */
+  .force-line {
+    margin-top: 4px;
+    font-size: 13px;
+    font-weight: 700;
+    color: #e08a6a;
+    letter-spacing: .3px;
+  }
+  .building.recruited {
+    border-color: var(--good);
+    background: rgba(150,190,115,.14);
+  }
+  .b-icon img.hero-portrait { width: 40px; height: 40px; border-radius: 50%; }
+  .hero-force { color: var(--accent); font-weight: 700; }
+  .buy-btn.done {
+    background: var(--good);
+    color: #1d2416;
+    cursor: default;
+    min-width: 104px;
+  }
+  .buy-btn.done:hover { transform: none; filter: none; }
+
   @media (max-width: 780px) {
     .container { grid-template-columns: 1fr; }
     .score { font-size: 40px; }
@@ -451,6 +473,7 @@
       <div class="score" id="score">0</div>
       <div class="pps" id="pps">0 points par seconde (PPS)</div>
       <div class="era-mult" id="era-mult"></div>
+      <div class="force-line" id="force-line"></div>
 
       <div class="click-zone">
         <div class="click-btn" id="clicker">
@@ -482,6 +505,11 @@
       <div class="section">
         <div class="section-title">🏠 Bâtiments (production passive)</div>
         <div id="buildings"></div>
+      </div>
+
+      <div class="section">
+        <div class="section-title">🦸 Héros (Force unique)</div>
+        <div id="heroes"></div>
       </div>
 
       <div class="section">
@@ -545,6 +573,29 @@
     { id: 'coal',    era: 4, img: 'data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2064%2064%22%3E%20%3Cg%20stroke%3D%22%231a1a1a%22%20stroke-width%3D%222.4%22%20stroke-linejoin%3D%22round%22%3E%20%3Cpolygon%20points%3D%2220%2C42%2013%2C30%2024%2C21%2035%2C28%2030%2C44%22%20fill%3D%22%233a3f44%22%2F%3E%20%3Cpolygon%20points%3D%2233%2C48%2029%2C34%2042%2C27%2053%2C36%2048%2C50%22%20fill%3D%22%232b2f33%22%2F%3E%20%3C%2Fg%3E%20%3Cpolygon%20points%3D%2224%2C21%2028%2C28%2022%2C32%2018%2C28%22%20fill%3D%22%235a626a%22%20opacity%3D%220.8%22%2F%3E%20%3Cpolygon%20points%3D%2242%2C27%2047%2C34%2040%2C37%2037%2C32%22%20fill%3D%22%234a525a%22%20opacity%3D%220.8%22%2F%3E%20%3C%2Fsvg%3E',     fb: '⚫', name: 'Mine de Charbon',           base: 8000000000,growth: 1.20, pps: 120000000 },
   ];
 
+  // Héros uniques : recrutés une seule fois, ils rapportent de la « Force »
+  // (chaque point de Force = +1 % de production globale, clics ET PPS).
+  const HEROES = [
+    { id:'grok',   era:0, force:12,   cost:300,
+      name:'Grok le Chasseur',    role:'Âge de Pierre',
+      svg:`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><circle cx="32" cy="32" r="27" fill="#8a6f4a" stroke="#2e2418" stroke-width="3"/><g transform="rotate(-30 32 32)" stroke="#2e2418" stroke-width="2"><rect x="22" y="29" width="20" height="6" rx="3" fill="#efe6d2"/><circle cx="22" cy="29" r="4" fill="#efe6d2"/><circle cx="22" cy="35" r="4" fill="#efe6d2"/><circle cx="42" cy="29" r="4" fill="#efe6d2"/><circle cx="42" cy="35" r="4" fill="#efe6d2"/></g></svg>` },
+    { id:'lua',    era:0, force:30,   cost:2500,
+      name:'Lua la Guérisseuse',  role:'Âge de Pierre',
+      svg:`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><circle cx="32" cy="32" r="27" fill="#4f8a46" stroke="#23401f" stroke-width="3"/><path d="M32 16 C20 22 20 40 32 48 C44 40 44 22 32 16 Z" fill="#bfe39a" stroke="#23401f" stroke-width="2.4"/><path d="M32 19 L32 46" stroke="#23401f" stroke-width="2"/></svg>` },
+    { id:'bronn',  era:1, force:80,   cost:150000,
+      name:'Bronn le Forgeron',   role:'Âge de Bronze',
+      svg:`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><circle cx="32" cy="32" r="27" fill="#cd7f32" stroke="#5a3614" stroke-width="3"/><g stroke="#2e2418" stroke-width="2.4" stroke-linejoin="round"><rect x="29" y="24" width="6" height="24" rx="2" fill="#8a5a30" transform="rotate(35 32 36)"/><rect x="20" y="18" width="20" height="11" rx="2" fill="#cfd6da" transform="rotate(35 30 23)"/></g></svg>` },
+    { id:'sigrid', era:2, force:200,  cost:3500000,
+      name:'Sigrid la Guerrière', role:'Âge de Fer',
+      svg:`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><circle cx="32" cy="32" r="27" fill="#7e909c" stroke="#333b41" stroke-width="3"/><g stroke="#21272b" stroke-width="2.2" stroke-linejoin="round"><polygon points="32,12 36,40 28,40" fill="#e6edf1"/><rect x="22" y="40" width="20" height="5" rx="2" fill="#5a3a22"/><rect x="29" y="45" width="6" height="9" rx="2" fill="#7a4a2a"/></g></svg>` },
+    { id:'leon',   era:3, force:500,  cost:90000000,
+      name:'Léon le Stratège',    role:'Antiquité',
+      svg:`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><circle cx="32" cy="32" r="27" fill="#cdb45f" stroke="#5e5022" stroke-width="3"/><g stroke="#3a2f10" stroke-width="2.2" stroke-linejoin="round"><rect x="20" y="20" width="24" height="24" rx="3" fill="#f3eccf"/></g><g stroke="#9a8540" stroke-width="2" stroke-linecap="round"><line x1="25" y1="27" x2="39" y2="27"/><line x1="25" y1="32" x2="39" y2="32"/><line x1="25" y1="37" x2="35" y2="37"/></g></svg>` },
+    { id:'edda',   era:4, force:1200, cost:4000000000,
+      name:'Edda l’Inventrice',   role:'Ère Industrielle',
+      svg:`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><circle cx="32" cy="32" r="27" fill="#c0712f" stroke="#5a3414" stroke-width="3"/><circle cx="32" cy="28" r="12" fill="#ffe9a8" stroke="#2e2418" stroke-width="2.4"/><rect x="27" y="40" width="10" height="7" rx="2" fill="#8a9298" stroke="#2e2418" stroke-width="2.2"/><path d="M28 26 L32 31 L36 26" fill="none" stroke="#c0712f" stroke-width="2"/></svg>` },
+  ];
+
   // ===================== État =====================
   const defaultState = () => ({
     score: 0,
@@ -552,18 +603,22 @@
     pickLevel: 0,
     era: 0,
     buildings: Object.fromEntries(BUILDINGS.map(b => [b.id, 0])),
+    heroes: {},          // { idHéros: true } pour les héros recrutés
     sound: true,
   });
   let state = load() || defaultState();
 
-  function costOf(b)   { return Math.ceil(b.base * Math.pow(b.growth, state.buildings[b.id])); }
-  function pickCost()  { return Math.ceil(PICK.base * Math.pow(PICK.growth, state.pickLevel)); }
-  function eraMult()   { return ERAS[state.era].mult; }
-  function unlocked(b) { return b.era <= state.era; }
-  // PPS de base (somme des bâtiments débloqués) puis valeurs effectives avec le bonus d'ère.
-  function basePPS()   { return BUILDINGS.reduce((s,b) => unlocked(b) ? s + b.pps * state.buildings[b.id] : s, 0); }
-  function effPPS()    { return basePPS() * eraMult(); }
-  function effClick()  { return state.clickPower * eraMult(); }
+  function costOf(b)    { return Math.ceil(b.base * Math.pow(b.growth, state.buildings[b.id])); }
+  function pickCost()   { return Math.ceil(PICK.base * Math.pow(PICK.growth, state.pickLevel)); }
+  function eraMult()    { return ERAS[state.era].mult; }
+  function unlocked(b)  { return b.era <= state.era; }
+  // Force totale (héros recrutés) → bonus multiplicatif global : +1 % par point de Force.
+  function forceTotal() { return HEROES.reduce((s,h) => state.heroes[h.id] ? s + h.force : s, 0); }
+  function forceMult()  { return 1 + forceTotal() / 100; }
+  // PPS de base puis valeurs effectives (bonus d'ère × bonus de Force).
+  function basePPS()    { return BUILDINGS.reduce((s,b) => unlocked(b) ? s + b.pps * state.buildings[b.id] : s, 0); }
+  function effPPS()     { return basePPS() * eraMult() * forceMult(); }
+  function effClick()   { return state.clickPower * eraMult() * forceMult(); }
 
   // ===================== DOM =====================
   const el = {
@@ -571,6 +626,8 @@
     pps:          document.getElementById('pps'),
     eraName:      document.getElementById('era-name'),
     eraMult:      document.getElementById('era-mult'),
+    forceLine:    document.getElementById('force-line'),
+    heroes:       document.getElementById('heroes'),
     clicker:      document.getElementById('clicker'),
     clickTag:     document.getElementById('click-power-tag'),
     pickCount:    document.getElementById('pick-count'),
@@ -608,6 +665,24 @@
     document.getElementById('buy-' + b.id).addEventListener('click', () => buyBuilding(b));
   });
 
+  // Génère les cartes de héros (portrait SVG intégré en data-URI)
+  HEROES.forEach(h => {
+    const row = document.createElement('div');
+    row.className = 'building';
+    row.id = 'h-' + h.id;
+    row.dataset.era = h.era;
+    const icon = 'data:image/svg+xml,' + encodeURIComponent(h.svg);
+    row.innerHTML = `
+      <div class="b-icon"><img class="hero-portrait" src="${icon}" alt=""></div>
+      <div class="b-info">
+        <h3>${h.name}</h3>
+        <p>${h.role} &middot; <span class="hero-force">+${fmt(h.force)} Force</span></p>
+      </div>
+      <button class="buy-btn" id="recruit-${h.id}">Recruter<small>${fmt(h.cost)} pts</small></button>`;
+    el.heroes.appendChild(row);
+    document.getElementById('recruit-' + h.id).addEventListener('click', () => recruit(h));
+  });
+
   // ===================== Formatage =====================
   function fmt(n) {
     n = Math.floor(n);
@@ -625,6 +700,8 @@
     el.pps.textContent = fmt(effPPS()) + ' points par seconde (PPS)';
     el.clickTag.textContent = '+' + fmt(effClick()) + ' par clic';
     el.eraMult.textContent = mult > 1 ? 'Bonus d’ère : ×' + mult : '';
+    const force = forceTotal();
+    el.forceLine.textContent = force > 0 ? '💪 Force : ' + fmt(force) + ' (+' + fmt(force) + ' % de production)' : '';
 
     // Amélioration de clic
     el.pickCount.textContent = state.pickLevel;
@@ -644,6 +721,27 @@
       const can = state.score >= c;
       document.getElementById('buy-' + b.id).disabled = !can;
       row.classList.toggle('affordable', can);
+    });
+
+    // Héros : masqués tant que l'ère n'est pas atteinte
+    HEROES.forEach(h => {
+      const row = document.getElementById('h-' + h.id);
+      if (!unlocked(h)) { row.style.display = 'none'; return; }
+      row.style.display = '';
+      const btn = document.getElementById('recruit-' + h.id);
+      if (state.heroes[h.id]) {
+        if (!btn.classList.contains('done')) {
+          btn.classList.add('done');
+          btn.disabled = true;
+          btn.innerHTML = '✓ Recruté';
+          row.classList.add('recruited');
+          row.classList.remove('affordable');
+        }
+      } else {
+        const can = state.score >= h.cost;
+        btn.disabled = !can;
+        row.classList.toggle('affordable', can);
+      }
     });
 
     // Panneau « Prochaine Ère »
@@ -679,6 +777,15 @@
     state.score -= c;
     state.buildings[b.id]++;
     blip(420);
+    render(); save();
+  }
+
+  function recruit(h) {
+    if (!unlocked(h) || state.heroes[h.id] || state.score < h.cost) return;
+    state.score -= h.cost;
+    state.heroes[h.id] = true;
+    blip(660);
+    showToast('🦸 ' + h.name + ' rejoint ton empire ! +' + fmt(h.force) + ' Force');
     render(); save();
   }
 
@@ -839,7 +946,8 @@
       const s = JSON.parse(raw);
       const base = defaultState();           // fusion pour compat. futures
       base.buildings = Object.assign(base.buildings, s.buildings || {});
-      return Object.assign(base, s, { buildings: base.buildings });
+      base.heroes = Object.assign(base.heroes, s.heroes || {});
+      return Object.assign(base, s, { buildings: base.buildings, heroes: base.heroes });
     } catch(e) { return null; }
   }
 
