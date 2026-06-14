@@ -3,6 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
 <title>Tap Empire — Clicker de Civilisation</title>
 <style>
   :root {
@@ -27,7 +30,7 @@
   html, body { height: 100%; }
 
   body {
-    font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    font-family: 'Nunito', -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
     background:
       radial-gradient(circle at 18% -5%, #3d362c 0%, transparent 45%),
       radial-gradient(circle at 85% 110%, #34403a 0%, transparent 50%),
@@ -553,6 +556,126 @@
   .garrison .troop { width: 34px; height: 34px; border-radius: 50%; border: 2px solid var(--beige-dark); background: rgba(0,0,0,.2); }
   .garrison-empty { font-size: 12px; color: var(--text-dim); }
   .vh-btn { width: 100%; }
+
+  /* Village vivant & interactif */
+  .v-build { cursor: pointer; }
+  .v-build:hover { filter: brightness(1.08); }
+  .v-th { animation: vBob 3.2s ease-in-out infinite; }
+  @keyframes vBob { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-2px); } }
+  .v-build.tapped { animation: vTap .34s ease; }
+  @keyframes vTap { 0% { transform: translateY(0); } 40% { transform: translateY(-9px); } 100% { transform: translateY(0); } }
+  .v-cloud { animation: vDrift linear infinite; }
+  @keyframes vDrift { from { transform: translateX(-55px); } to { transform: translateX(315px); } }
+  .v-smoke { animation: vSmoke 2.6s ease-out infinite; }
+  @keyframes vSmoke { 0% { opacity: .55; transform: translateY(0); } 100% { opacity: 0; transform: translateY(-30px); } }
+  .v-villager { animation: vWalk linear infinite; }
+  @keyframes vWalk { 0% { transform: translateX(-16px); } 50% { transform: translateX(16px); } 100% { transform: translateX(-16px); } }
+
+  /* ====================== Habillage moderne ====================== */
+  :root { --font-head: 'Fredoka', 'Segoe UI', sans-serif; }
+  .title, .score, .section-title, .b-info h3, .era-badge, .pps, .era-mult,
+  .buy-btn, .evolve-btn, .raid-btn, .tab, .resourcebar, .raid-name,
+  .force-line, .village-stats, .b-info p { font-family: var(--font-head); }
+
+  body {
+    background:
+      radial-gradient(circle at 18% -5%, #463d30 0%, transparent 45%),
+      radial-gradient(circle at 85% 110%, #34403a 0%, transparent 50%),
+      linear-gradient(160deg, var(--bg) 0%, var(--bg2) 100%);
+    background-attachment: fixed;
+  }
+
+  .panel {
+    border-radius: 24px;
+    border-color: rgba(255,255,255,.10);
+    box-shadow: 0 22px 46px rgba(0,0,0,.46), inset 0 1px 0 rgba(255,255,255,.07);
+  }
+
+  /* Boutons 3D (s'enfoncent au clic) */
+  .buy-btn, .evolve-btn, .raid-btn, .tab, .ctrl {
+    box-shadow: 0 5px 0 rgba(0,0,0,.30), 0 9px 16px rgba(0,0,0,.30);
+  }
+  .buy-btn:active:not(:disabled), .evolve-btn:active:not(:disabled),
+  .raid-btn:active:not(:disabled), .tab:active, .ctrl:active {
+    transform: translateY(4px) !important;
+    box-shadow: 0 1px 0 rgba(0,0,0,.30), 0 3px 7px rgba(0,0,0,.3);
+  }
+  .buy-btn:disabled, .evolve-btn:disabled {
+    box-shadow: 0 4px 0 rgba(0,0,0,.20);
+  }
+  .tab.active { box-shadow: 0 5px 0 rgba(0,0,0,.32), 0 9px 18px var(--accent-glow); }
+  .vh-btn { box-shadow: 0 5px 0 rgba(0,0,0,.30), 0 9px 16px rgba(0,0,0,.30); }
+
+  /* Gros bouton minerai : relief + brillance vitrée */
+  .click-btn {
+    border-width: 4px;
+    box-shadow: 0 0 0 0 var(--accent-glow), 0 18px 36px rgba(0,0,0,.5),
+                inset 0 6px 16px rgba(255,255,255,.10), inset 0 -12px 24px rgba(0,0,0,.55);
+  }
+  .click-btn::before {
+    content: ""; position: absolute; left: 16%; top: 9%; width: 46%; height: 30%;
+    border-radius: 50%; pointer-events: none; z-index: 1;
+    background: radial-gradient(ellipse at center, rgba(255,255,255,.40), transparent 72%);
+  }
+
+  /* Onglet actif : effet "pilule" lumineuse */
+  .tab { letter-spacing: .2px; }
+  .score { letter-spacing: .5px; }
+
+  /* ============ Gros bouton minerai : 3D brillant ============ */
+  .click-btn {
+    width: 250px; height: 250px;
+    border: none;
+    background: radial-gradient(circle at 50% 30%, #6d6353 0%, #423b30 52%, #2a241d 100%);
+    box-shadow:
+      inset 0 0 0 6px rgba(255,255,255,.05),
+      inset 0 7px 16px rgba(255,255,255,.16),
+      inset 0 -20px 38px rgba(0,0,0,.62),
+      0 0 0 5px var(--beige-dark),
+      0 16px 0 #221d17,
+      0 24px 32px rgba(0,0,0,.55),
+      0 0 46px var(--accent-glow);
+    transition: transform .14s cubic-bezier(.34,1.56,.64,1), box-shadow .25s, filter .2s;
+  }
+  .click-btn:hover {
+    transform: scale(1.04);
+    filter: brightness(1.07);
+    box-shadow:
+      inset 0 0 0 6px rgba(255,255,255,.07),
+      inset 0 7px 16px rgba(255,255,255,.18),
+      inset 0 -20px 38px rgba(0,0,0,.6),
+      0 0 0 5px var(--accent),
+      0 16px 0 #221d17,
+      0 26px 38px rgba(0,0,0,.55),
+      0 0 60px var(--accent-glow);
+  }
+  .click-btn:active {
+    box-shadow:
+      inset 0 0 0 6px rgba(255,255,255,.05),
+      inset 0 5px 12px rgba(255,255,255,.12),
+      inset 0 -10px 22px rgba(0,0,0,.6),
+      0 0 0 5px var(--beige-dark),
+      0 5px 0 #221d17,
+      0 8px 14px rgba(0,0,0,.5),
+      0 0 34px var(--accent-glow);
+  }
+  .click-btn img, .click-btn .fallback {
+    width: 165px; height: 165px;
+    position: relative; z-index: 2;
+    filter: drop-shadow(0 10px 12px rgba(0,0,0,.55));
+    animation: gemFloat 3.2s ease-in-out infinite;
+  }
+  @keyframes gemFloat { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-7px); } }
+  .click-btn.clicked { animation: squish .28s ease; }
+  @keyframes squish {
+    0%   { transform: translateY(11px) scale(.97); }
+    55%  { transform: translateY(-4px) scale(1.03); }
+    100% { transform: translateY(0) scale(1); }
+  }
+  .click-btn::before {
+    left: 18%; top: 8%; width: 44%; height: 30%; z-index: 3;
+    background: radial-gradient(ellipse at center, rgba(255,255,255,.55), transparent 70%);
+  }
 
   @media (max-width: 780px) {
     .cols { grid-template-columns: 1fr; }
@@ -1134,8 +1257,10 @@
       const fy = E[1] - 14;
       s += `<line x1="${E[0].toFixed(1)}" y1="${E[1].toFixed(1)}" x2="${E[0].toFixed(1)}" y2="${fy.toFixed(1)}" stroke="#3a2f25" stroke-width="2"/>`;
       s += `<polygon points="${E[0].toFixed(1)},${fy.toFixed(1)} ${(E[0]+12).toFixed(1)},${(fy+3).toFixed(1)} ${E[0].toFixed(1)},${(fy+6).toFixed(1)}" fill="#cf4a3f" stroke="#3a2f25" stroke-width="1"/>`;
+      for (let k = 0; k < 3; k++)
+        s += `<circle class="v-smoke" cx="${(E[0]-10).toFixed(1)}" cy="${(E[1]-2).toFixed(1)}" r="${(2.6 + k*0.7).toFixed(1)}" fill="#e6e6ea" style="animation-delay:${(k*0.85).toFixed(2)}s"/>`;
     }
-    return s;
+    return `<g class="v-build${th ? ' v-th' : ''}" data-b="${th ? 'th' : 'hut'}">${s}</g>`;
   }
   function villageSceneSVG() {
     const e = ERAS[state.era];
@@ -1147,7 +1272,13 @@
     // socle de l'île (terrain + épaisseur de terre)
     const T = P(0, 0), R = P(N, 0), Bo = P(N, N), Lf = P(0, N);
     const dn = p => [p[0], p[1] + gH];
-    let inner = '';
+    // nuages animés dans le ciel
+    const cloud = (x, y, sc, dur, delay) =>
+      `<g class="v-cloud" style="animation-duration:${dur}s;animation-delay:${delay}s">`
+      + `<ellipse cx="${x}" cy="${y}" rx="${(14*sc).toFixed(1)}" ry="${(8*sc).toFixed(1)}" fill="#fff" opacity=".9"/>`
+      + `<ellipse cx="${(x+10*sc).toFixed(1)}" cy="${y+2}" rx="${(10*sc).toFixed(1)}" ry="${(6*sc).toFixed(1)}" fill="#fff" opacity=".9"/>`
+      + `<ellipse cx="${(x-9*sc).toFixed(1)}" cy="${y+3}" rx="${(8*sc).toFixed(1)}" ry="${(5*sc).toFixed(1)}" fill="#fff" opacity=".85"/></g>`;
+    let inner = cloud(15, 24, 1, 26, 0) + cloud(115, 14, .8, 34, -12) + cloud(205, 30, 1.1, 30, -20);
     inner += `<polygon points="${ptsStr([R, Bo, dn(Bo), dn(R)])}" fill="#6f4a2a"/>`;
     inner += `<polygon points="${ptsStr([Lf, Bo, dn(Bo), dn(Lf)])}" fill="#5a3c22"/>`;
     inner += `<polygon points="${ptsStr([T, R, Bo, Lf])}" fill="${ground}" stroke="${grassEdge}" stroke-width="2" stroke-linejoin="round"/>`;
@@ -1167,6 +1298,16 @@
       items.push({ c:slots[i].c, r:slots[i].r, w:1, d:1, wallH:18, roofH:14, roof:e.beigeDark, th:false });
     items.sort((a, b) => ((a.c + a.w/2) + (a.r + a.d/2)) - ((b.c + b.w/2) + (b.r + b.d/2)));
     for (const it of items) inner += isoBuilding(P, ptsStr, it, wallL, wallR);
+
+    // villageois qui se promènent
+    const vil = (cc, rr, col, dur, delay) => {
+      const p = P(cc, rr);
+      return `<g class="v-villager" style="animation-duration:${dur}s;animation-delay:${delay}s">`
+        + `<ellipse cx="${p[0].toFixed(1)}" cy="${(p[1]-1).toFixed(1)}" rx="3" ry="1.5" fill="#00000033"/>`
+        + `<rect x="${(p[0]-2).toFixed(1)}" y="${(p[1]-9).toFixed(1)}" width="4" height="7" rx="2" fill="${col}"/>`
+        + `<circle cx="${p[0].toFixed(1)}" cy="${(p[1]-10).toFixed(1)}" r="2.3" fill="#e9c6a0"/></g>`;
+    };
+    inner += vil(2.5, 3.7, '#7a8a52', 5, 0) + vil(1.5, 2.7, '#9a5a3a', 6.5, -2) + vil(3.5, 2.3, '#5a6f8a', 5.8, -3.5);
 
     return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 280 185">${inner}</svg>`;
   }
@@ -1206,6 +1347,27 @@
     render(); save();
   }
   el.vhUpgrade.addEventListener('click', upgradeVillage);
+
+  // Interaction directe avec les bâtiments de la scène isométrique
+  el.villageScene.addEventListener('click', (ev) => {
+    const g = ev.target.closest && ev.target.closest('[data-b]');
+    if (!g) return;
+    g.classList.remove('tapped');
+    requestAnimationFrame(() => g.classList.add('tapped'));
+    setTimeout(() => g.classList.remove('tapped'), 360);
+    // Taper l'hôtel de ville l'améliore si possible
+    if (g.dataset.b === 'th' && state.townHall < TH_MAX && state.score >= townHallCost()) {
+      upgradeVillage();
+      return;
+    }
+    // Sinon : on récolte quelques points (comme un clic sur le minerai)
+    const gain = effClick();
+    if (Number.isFinite(gain)) state.score += gain;
+    spawnFloat(ev.clientX, ev.clientY, '+' + fmt(gain));
+    spawnParticles(ev.clientX, ev.clientY);
+    clickSound();
+    render();
+  });
 
   // Attaque ennemie périodique sur TON village (la défense décide de l'issue)
   function defenseEvent() {
