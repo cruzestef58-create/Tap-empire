@@ -483,6 +483,43 @@
     60% { transform: translateX(-4px); } 80% { transform: translateX(4px); }
   }
 
+  /* Scène de survol (nuages → village) */
+  .raid-scene {
+    position: relative;
+    height: 150px;
+    border-radius: 12px;
+    overflow: hidden;
+    margin-bottom: 12px;
+    background: linear-gradient(180deg, #6b8fae 0%, #a9c6da 55%, #d3c79a 100%);
+  }
+  .village-art {
+    position: absolute; left: 50%; bottom: 4px; width: 200px;
+    transform: translateX(-50%) scale(.6); opacity: 0;
+    transition: transform .6s cubic-bezier(.34,1.56,.64,1), opacity .5s;
+  }
+  .village-art svg { width: 100%; height: auto; display: block; }
+  .raid-scene.revealed .village-art { opacity: 1; transform: translateX(-50%) scale(1); }
+
+  .puff {
+    position: absolute; background: #fdfdff; border-radius: 50%; filter: blur(1px);
+    box-shadow: 26px 10px 0 -3px #fdfdff, -26px 10px 0 -3px #fdfdff, 0 14px 0 -1px #fdfdff;
+    transition: opacity .6s ease, transform .8s ease;
+  }
+  .p1 { width: 60px; height: 60px; left: 4%;  top: 22%; }
+  .p2 { width: 84px; height: 84px; left: 30%; top: 6%; }
+  .p3 { width: 70px; height: 70px; left: 58%; top: 26%; }
+  .p4 { width: 54px; height: 54px; left: 80%; top: 14%; }
+  .p5 { width: 92px; height: 92px; left: 44%; top: 42%; }
+  .raid-scene.revealed .puff { opacity: 0; transform: translateY(-28px); }
+  .raid-scene.scanning .puff { animation: drift 1.3s linear; opacity: 1; }
+  @keyframes drift { 0% { transform: translateX(70px); } 100% { transform: translateX(-70px); } }
+
+  .scene-label {
+    position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+    color: #2b2723; font-weight: 700; font-size: 15px; text-shadow: 0 1px 3px rgba(255,255,255,.5);
+    pointer-events: none;
+  }
+
   @media (max-width: 780px) {
     .container { grid-template-columns: 1fr; }
     .score { font-size: 40px; }
@@ -860,19 +897,48 @@
   }
 
   // ===================== Pillage =====================
+  let isScanning = false;
+  const VILLAGE_ART = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 110"><path d="M0 88 Q100 74 200 88 L200 110 L0 110 Z" fill="#8a9a52" stroke="#5f6d38" stroke-width="2"/><g stroke="#3a2f25" stroke-width="2" stroke-linejoin="round"><rect x="26" y="64" width="34" height="26" rx="3" fill="#c9a877"/><polygon points="22,64 64,64 43,44" fill="#8a5a30"/><rect x="38" y="74" width="10" height="16" fill="#5f4326"/></g><g stroke="#3a2f25" stroke-width="2" stroke-linejoin="round"><rect x="80" y="54" width="44" height="36" rx="3" fill="#d8b78f"/><polygon points="74,54 130,54 102,30" fill="#a4642f"/><rect x="96" y="70" width="12" height="20" fill="#5f4326"/><rect x="84" y="60" width="9" height="9" fill="#7aa0b5"/></g><g stroke="#3a2f25" stroke-width="2" stroke-linejoin="round"><rect x="140" y="66" width="32" height="24" rx="3" fill="#c9a877"/><polygon points="136,66 176,66 156,48" fill="#8a5a30"/></g><line x1="102" y1="30" x2="102" y2="16" stroke="#3a2f25" stroke-width="2"/><polygon points="102,16 116,20 102,24" fill="#cf4a3f" stroke="#3a2f25" stroke-width="1.5"/></svg>`;
+
+  // Construit la scène (clouds + village) une seule fois ; renderRaid ne touche qu'à #raid-info
+  function buildRaidScene() {
+    el.raidCard.innerHTML = `
+      <div class="raid-scene" id="raid-scene">
+        <div class="village-art">${VILLAGE_ART}</div>
+        <div class="puff p1"></div><div class="puff p2"></div><div class="puff p3"></div>
+        <div class="puff p4"></div><div class="puff p5"></div>
+        <div class="scene-label" id="scene-label"></div>
+      </div>
+      <div id="raid-info"></div>`;
+  }
+
   function winChance(defense) {
     const F = forceTotal();
     return (F + defense) > 0 ? F / (F + defense) : 0;
   }
 
+  // Recherche = petite séquence : nuages qui défilent, puis on « atterrit » sur un village
   function searchVillage() {
-    const F = forceTotal();
-    const base = Math.max(10, F);
-    const defense = Math.round(base * (0.5 + Math.random() * 1.3));
-    const sec = 25 + Math.random() * 55;                       // butin ≈ 25–80 s de production
-    const loot = Math.round(effPPS() * sec + 50 + defense * 4);
-    state.raid = { name: randomVillageName(), defense, loot };
-    renderRaid(); save();
+    if (isScanning) return;
+    const scene = document.getElementById('raid-scene');
+    const label = document.getElementById('scene-label');
+    isScanning = true;
+    state.raid = null;
+    if (scene) { scene.classList.remove('revealed'); scene.classList.add('scanning'); }
+    if (label) label.textContent = '🌥️ Survol des terres…';
+    renderRaid();
+    setTimeout(() => {
+      const F = forceTotal();
+      const base = Math.max(10, F);
+      const defense = Math.round(base * (0.5 + Math.random() * 1.3));
+      const sec = 25 + Math.random() * 55;                     // butin ≈ 25–80 s de production
+      const loot = Math.round(effPPS() * sec + 50 + defense * 4);
+      state.raid = { name: randomVillageName(), defense, loot };
+      isScanning = false;
+      if (scene) { scene.classList.remove('scanning'); scene.classList.add('revealed'); }
+      if (label) label.textContent = '';
+      renderRaid(); save();
+    }, 1300);
   }
 
   function attackVillage() {
@@ -898,13 +964,25 @@
     renderRaid(); render(); save();
   }
 
-  // Construit le contenu du panneau (appelé seulement quand l'état du raid change)
+  // Met à jour #raid-info + l'état de la scène (sans reconstruire la scène ni casser l'anim)
   function renderRaid() {
+    const scene = document.getElementById('raid-scene');
+    const info  = document.getElementById('raid-info');
+    const label = document.getElementById('scene-label');
+    if (!info) return;
+
+    if (!isScanning && scene) {
+      if (state.raid) { scene.classList.add('revealed'); scene.classList.remove('scanning'); if (label) label.textContent = ''; }
+      else { scene.classList.remove('revealed', 'scanning'); if (label) label.textContent = '☁️ Terres inexplorées'; }
+    }
+
     const F = forceTotal();
     let html = `<div class="raid-force">💪 Ta Force d'attaque : <b>${fmt(F)}</b></div>`;
     if (F <= 0) html += `<div class="raid-hint">Recrute des héros pour gagner de la Force et pouvoir piller !</div>`;
 
-    if (!state.raid) {
+    if (isScanning) {
+      html += `<div class="raid-chance">🔭 Exploration en cours…</div>`;
+    } else if (!state.raid) {
       html += `<button class="raid-btn search" id="raid-search">🔍 Chercher un village à piller</button>`;
     } else {
       const t = state.raid;
@@ -925,7 +1003,7 @@
     }
     if (state.raidMsg) html += `<div class="raid-result ${state.raidMsgWin ? 'win' : 'lose'}">${state.raidMsg}</div>`;
     html += `<div class="raid-tally">Victoires : ${state.raidWins} &middot; Défaites : ${state.raidLosses}</div>`;
-    el.raidCard.innerHTML = html;
+    info.innerHTML = html;
   }
 
   // Délégation : un seul écouteur sur le conteneur (survit aux reconstructions innerHTML)
@@ -1155,6 +1233,7 @@
 
   // ===================== Démarrage =====================
   applyEra();   // restaure l'ambiance de l'ère sauvegardée
+  buildRaidScene();
   renderRaid();
   render();
 </script>
