@@ -520,6 +520,20 @@
     pointer-events: none;
   }
 
+  /* Mon Village */
+  .village-scene {
+    position: relative; height: 165px; border-radius: 12px; overflow: hidden; margin-bottom: 12px;
+    background: linear-gradient(180deg, #8fb3cf 0%, #bcd6e2 58%, #cdbf95 100%);
+  }
+  .village-scene svg { width: 100%; height: 100%; display: block; }
+  .village-stats { font-size: 13px; color: var(--text-dim); display: flex; flex-direction: column; gap: 4px; margin-bottom: 10px; }
+  .village-stats b { color: var(--beige); }
+  #vh-def { color: #9ab7d6; }
+  .garrison { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; min-height: 36px; align-items: center; }
+  .garrison .troop { width: 34px; height: 34px; border-radius: 50%; border: 2px solid var(--beige-dark); background: rgba(0,0,0,.2); }
+  .garrison-empty { font-size: 12px; color: var(--text-dim); }
+  .vh-btn { width: 100%; }
+
   @media (max-width: 780px) {
     .container { grid-template-columns: 1fr; }
     .score { font-size: 40px; }
@@ -564,6 +578,18 @@
 
     <!-- ===== Colonne droite : Améliorations ===== -->
     <div class="panel">
+
+      <div class="section">
+        <div class="section-title">🏡 Mon Village</div>
+        <div class="village-scene" id="village-scene"></div>
+        <div class="village-stats">
+          <div>🏛️ Niveau du village : <b id="vh-level">1</b></div>
+          <div>🛡️ Défense : <b id="vh-def">0</b></div>
+          <div>⚔️ Troupes : <b id="vh-troops">0</b> héros &middot; 💪 Force <b id="vh-force">0</b></div>
+        </div>
+        <div class="garrison" id="garrison"></div>
+        <button class="buy-btn vh-btn" id="vh-upgrade">Améliorer le village<small id="vh-cost">—</small></button>
+      </div>
 
       <div class="section">
         <div class="section-title">⛏️ Puissance de clic</div>
@@ -630,6 +656,7 @@
   ];
   // Coût pour passer de l'ère i à i+1 (longueur = ERAS.length - 1).
   const EVOLVE_COSTS = [500, 25000, 900000, 25000000];
+  const TH_MAX = 10;   // niveau maximum du village (Centre du village)
 
   const PICK = { base: 25, growth: 1.6, power: 1 }; // amélioration de clic
 
@@ -696,6 +723,8 @@
     era: 0,
     buildings: Object.fromEntries(BUILDINGS.map(b => [b.id, 0])),
     heroes: {},          // { idHéros: true } pour les héros recrutés
+    townHall: 1,         // niveau du Centre du village
+    nextDefenseTime: 0,  // prochaine attaque ennemie sur ton village
     raid: null,          // village cible actuel { name, defense, loot }
     nextRaidTime: 0,     // timestamp avant la prochaine attaque possible
     raidWins: 0,
@@ -711,12 +740,19 @@
   function eraMult()    { return ERAS[state.era].mult; }
   function unlocked(b)  { return b.era <= state.era; }
   // Force totale (héros recrutés) → bonus multiplicatif global : +1 % par point de Force.
-  function forceTotal() { return HEROES.reduce((s,h) => state.heroes[h.id] ? s + h.force : s, 0); }
-  function forceMult()  { return 1 + forceTotal() / 100; }
-  // PPS de base puis valeurs effectives (bonus d'ère × bonus de Force).
+  function forceTotal()         { return HEROES.reduce((s,h) => state.heroes[h.id] ? s + h.force : s, 0); }
+  function forceMult()          { return 1 + forceTotal() / 100; }
+  function recruitedCount()     { return HEROES.reduce((n,h) => state.heroes[h.id] ? n + 1 : n, 0); }
+  function totalBuildingsOwned(){ return BUILDINGS.reduce((s,b) => s + (state.buildings[b.id] || 0), 0); }
+  // Village
+  function townHallCost()  { return Math.ceil(2000 * Math.pow(5, state.townHall - 1)); }
+  function villageMult()   { return 1 + (state.townHall - 1) * 0.05; }            // +5 % de production / niveau
+  function villageHuts()   { return Math.min(6, state.era + Math.floor(totalBuildingsOwned() / 4)); }
+  function villageDefense(){ return Math.round(state.townHall * 30 + totalBuildingsOwned() * 3 + forceTotal() * 0.6); }
+  // PPS de base puis valeurs effectives (ère × Force × village).
   function basePPS()    { return BUILDINGS.reduce((s,b) => unlocked(b) ? s + b.pps * state.buildings[b.id] : s, 0); }
-  function effPPS()     { return basePPS() * eraMult() * forceMult(); }
-  function effClick()   { return state.clickPower * eraMult() * forceMult(); }
+  function effPPS()     { return basePPS() * eraMult() * forceMult() * villageMult(); }
+  function effClick()   { return state.clickPower * eraMult() * forceMult() * villageMult(); }
 
   // ===================== DOM =====================
   const el = {
@@ -727,6 +763,14 @@
     forceLine:    document.getElementById('force-line'),
     heroes:       document.getElementById('heroes'),
     raidCard:     document.getElementById('raid-card'),
+    villageScene: document.getElementById('village-scene'),
+    garrison:     document.getElementById('garrison'),
+    vhLevel:      document.getElementById('vh-level'),
+    vhDef:        document.getElementById('vh-def'),
+    vhTroops:     document.getElementById('vh-troops'),
+    vhForce:      document.getElementById('vh-force'),
+    vhCost:       document.getElementById('vh-cost'),
+    vhUpgrade:    document.getElementById('vh-upgrade'),
     clicker:      document.getElementById('clicker'),
     clickTag:     document.getElementById('click-power-tag'),
     pickCount:    document.getElementById('pick-count'),
@@ -873,6 +917,8 @@
       else if (ab.disabled) { ab.disabled = false; ab.textContent = '⚔️ Attaquer'; }
     }
 
+    renderVillage();
+
     el.soundToggle.textContent = state.sound ? '🔊 Son' : '🔇 Muet';
   }
 
@@ -1012,6 +1058,93 @@
     if (id === 'raid-search' || id === 'raid-skip') searchVillage();
     else if (id === 'raid-attack') attackVillage();
   });
+
+  // ===================== Mon Village =====================
+  function hutSVG(x, y, roof, wall) {
+    const bh = 104 - y;
+    return `<g stroke="#3a2f25" stroke-width="1.8" stroke-linejoin="round">
+      <rect x="${x}" y="${y}" width="28" height="${bh}" rx="2" fill="${wall}"/>
+      <polygon points="${x-3},${y} ${x+31},${y} ${x+14},${y-15}" fill="${roof}"/>
+      <rect x="${x+10}" y="92" width="8" height="12" fill="#5f4326"/>
+    </g>`;
+  }
+  function townHallSVG(cx, topY, level, roof, wall) {
+    const w = 54, x = cx - w / 2, bottom = 104, bh = bottom - topY;
+    return `<g stroke="#3a2f25" stroke-width="2" stroke-linejoin="round">
+      <rect x="${x}" y="${topY}" width="${w}" height="${bh}" rx="3" fill="${wall}"/>
+      <polygon points="${x-5},${topY} ${x+w+5},${topY} ${cx},${topY-22}" fill="${roof}"/>
+      <rect x="${cx-7}" y="${bottom-20}" width="14" height="20" fill="#5f4326"/>
+      <rect x="${x+7}" y="${topY+10}" width="9" height="9" fill="#7aa0b5"/>
+      <rect x="${x+w-16}" y="${topY+10}" width="9" height="9" fill="#7aa0b5"/>
+      <line x1="${cx}" y1="${topY-22}" x2="${cx}" y2="${topY-38}" stroke="#3a2f25" stroke-width="2"/>
+      <polygon points="${cx},${topY-38} ${cx+16},${topY-34} ${cx},${topY-30}" fill="#cf4a3f" stroke="#3a2f25" stroke-width="1.5"/>
+    </g>
+    <text x="${cx}" y="${topY + bh/2 + 5}" text-anchor="middle" font-size="13" font-weight="700" fill="#3a2f25" font-family="sans-serif">Nv ${level}</text>`;
+  }
+  function villageSceneSVG() {
+    const e = ERAS[state.era];
+    const roof = e.accent, hutRoof = e.beigeDark, wall = '#c9a877', ground = '#8a9a52';
+    const slots = [ {x:14,y:86}, {x:206,y:86}, {x:46,y:92}, {x:178,y:92}, {x:74,y:82}, {x:150,y:82} ];
+    let inner = `<path d="M0 96 Q130 82 260 96 L260 130 L0 130 Z" fill="${ground}" stroke="#5f6d38" stroke-width="2"/>`;
+    const huts = villageHuts();
+    for (let i = 0; i < huts; i++) inner += hutSVG(slots[i].x, slots[i].y, hutRoof, wall);
+    inner += townHallSVG(130, 48, state.townHall, roof, wall);
+    return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 260 130">${inner}</svg>`;
+  }
+  function rebuildVillageVisual() {
+    el.villageScene.innerHTML = villageSceneSVG();
+    let g = '';
+    HEROES.forEach(h => {
+      if (state.heroes[h.id])
+        g += `<img class="troop" src="data:image/svg+xml,${encodeURIComponent(h.svg)}" alt="" title="${h.name}">`;
+    });
+    el.garrison.innerHTML = g || '<span class="garrison-empty">Aucune troupe — recrute des héros !</span>';
+  }
+  let lastVillageSig = '';
+  function renderVillage() {
+    const sig = state.era + '|' + state.townHall + '|' + villageHuts() + '|' + recruitedCount();
+    if (sig !== lastVillageSig) { rebuildVillageVisual(); lastVillageSig = sig; }
+    el.vhLevel.textContent  = state.townHall;
+    el.vhDef.textContent    = fmt(villageDefense());
+    el.vhTroops.textContent = recruitedCount();
+    el.vhForce.textContent  = fmt(forceTotal());
+    if (state.townHall >= TH_MAX) {
+      el.vhCost.textContent = 'Niveau max';
+      el.vhUpgrade.disabled = true;
+    } else {
+      el.vhCost.textContent = fmt(townHallCost()) + ' pts';
+      el.vhUpgrade.disabled = state.score < townHallCost();
+    }
+  }
+  function upgradeVillage() {
+    if (state.townHall >= TH_MAX) return;
+    const c = townHallCost();
+    if (state.score < c) return;
+    state.score -= c;
+    state.townHall++;
+    blip(560);
+    showToast('🏡 Village amélioré au niveau ' + state.townHall + ' ! +5 % de production et défense renforcée.');
+    render(); save();
+  }
+  el.vhUpgrade.addEventListener('click', upgradeVillage);
+
+  // Attaque ennemie périodique sur TON village (la défense décide de l'issue)
+  function defenseEvent() {
+    const def = villageDefense();
+    const threat = Math.round((state.era + 1) * 50 * (0.6 + Math.random() * 0.9) + totalBuildingsOwned() * 1.5);
+    if (def >= threat) {
+      const bonus = Math.round(effPPS() * 15 + 25);
+      state.score += bonus;
+      showToast('🛡️ Ton village a repoussé une attaque (déf. ' + fmt(def) + ' vs ' + fmt(threat) + ') ! +' + fmt(bonus) + ' butin.');
+      blip(720);
+    } else {
+      const loss = Math.min(state.score * 0.02, effPPS() * 20);
+      state.score = Math.max(0, state.score - loss);
+      showToast('💥 Un clan ennemi a pillé ton village (déf. ' + fmt(def) + ' vs ' + fmt(threat) + ') ! -' + fmt(loss) + '. Améliore ton village !');
+      blip(180);
+    }
+    state.nextDefenseTime = Date.now() + 90000 + Math.random() * 90000;   // 1,5 – 3 min
+  }
 
   el.buyPick.addEventListener('click', () => {
     const c = pickCost();
@@ -1185,6 +1318,9 @@
         st.buildings[b.id] = (Number.isFinite(v) && v >= 0) ? Math.floor(v) : 0;
       });
       if (!st.heroes || typeof st.heroes !== 'object') st.heroes = {};
+      // Village
+      if (!Number.isInteger(st.townHall) || st.townHall < 1) st.townHall = 1;
+      st.townHall = Math.min(st.townHall, TH_MAX);
       // Champs de pillage
       if (!Number.isFinite(st.nextRaidTime)) st.nextRaidTime = 0;
       if (!Number.isFinite(st.raidWins)   || st.raidWins   < 0) st.raidWins   = 0;
@@ -1210,6 +1346,7 @@
     const gain = effPPS() / 10;
     if (Number.isFinite(gain) && gain > 0) state.score += gain;
     if (!Number.isFinite(state.score)) state.score = 0;   // garde-fou anti-NaN
+    if (Date.now() > state.nextDefenseTime) defenseEvent();
     render();   // toujours rafraîchir (décompte du raid, boutons…)
   }, 100);
 
@@ -1235,6 +1372,7 @@
   applyEra();   // restaure l'ambiance de l'ère sauvegardée
   buildRaidScene();
   renderRaid();
+  state.nextDefenseTime = Date.now() + 120000;   // 1re attaque ennemie ~2 min après l'ouverture
   render();
 </script>
 </body>
