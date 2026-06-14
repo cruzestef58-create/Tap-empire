@@ -67,10 +67,15 @@
     z-index: 1;
     max-width: 1120px;
     margin: 0 auto;
+  }
+  .cols {
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 26px;
   }
+  .view { display: none; }
+  .view.active { display: block; animation: viewIn .35s ease; }
+  @keyframes viewIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
 
   .panel {
     background: var(--panel);
@@ -336,7 +341,7 @@
 
   /* topbar avec contrôles */
   .topbar {
-    grid-column: 1 / -1;
+    margin-bottom: 26px;
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -359,6 +364,21 @@
   }
   .ctrl:hover { color: var(--text); border-color: var(--beige-dark); }
   .ctrl:active { transform: scale(.95); }
+
+  /* Onglets de navigation + barre de ressources */
+  .tabs { display: flex; gap: 6px; }
+  .tab {
+    font-family: inherit; font-weight: 700; font-size: 14px;
+    background: var(--panel); color: var(--text-dim);
+    border: 1px solid rgba(255,255,255,.08); border-radius: 10px;
+    padding: 9px 16px; cursor: pointer;
+    transition: color .2s, background .2s, border-color .2s, transform .1s;
+  }
+  .tab:hover { color: var(--text); border-color: var(--beige-dark); }
+  .tab:active { transform: scale(.96); }
+  .tab.active { background: var(--accent); color: #2b2723; border-color: var(--accent); }
+  .resourcebar { font-weight: 700; color: var(--beige); font-size: 14px; }
+  .resourcebar span { color: var(--accent); }
 
   /* Toast */
   .toast {
@@ -535,7 +555,8 @@
   .vh-btn { width: 100%; }
 
   @media (max-width: 780px) {
-    .container { grid-template-columns: 1fr; }
+    .cols { grid-template-columns: 1fr; }
+    .topbar { gap: 8px; }
     .score { font-size: 40px; }
     .click-btn { width: 210px; height: 210px; }
     .click-btn img, .click-btn .fallback { width: 125px; height: 125px; font-size: 90px; }
@@ -550,11 +571,20 @@
     <!-- Barre supérieure -->
     <div class="topbar">
       <div class="title">⛰️ Tap <span>Empire</span></div>
+      <div class="tabs">
+        <button class="tab active" data-view="prod">⛏️ Production</button>
+        <button class="tab" data-view="village">🏡 Village</button>
+      </div>
+      <div class="resourcebar">💰 <span id="top-score">0</span> &middot; <span id="top-pps">0</span>/s</div>
       <div class="controls">
         <button class="ctrl" id="sound-toggle">🔊 Son</button>
         <button class="ctrl" id="reset-btn">↺ Réinitialiser</button>
       </div>
     </div>
+
+    <!-- ===================== VUE PRODUCTION ===================== -->
+    <div class="view active" id="view-prod">
+    <div class="cols">
 
     <!-- ===== Colonne gauche : Action ===== -->
     <div class="panel">
@@ -576,20 +606,8 @@
       </div>
     </div>
 
-    <!-- ===== Colonne droite : Améliorations ===== -->
+    <!-- ===== Colonne droite : Production ===== -->
     <div class="panel">
-
-      <div class="section">
-        <div class="section-title">🏡 Mon Village</div>
-        <div class="village-scene" id="village-scene"></div>
-        <div class="village-stats">
-          <div>🏛️ Niveau du village : <b id="vh-level">1</b></div>
-          <div>🛡️ Défense : <b id="vh-def">0</b></div>
-          <div>⚔️ Troupes : <b id="vh-troops">0</b> héros &middot; 💪 Force <b id="vh-force">0</b></div>
-        </div>
-        <div class="garrison" id="garrison"></div>
-        <button class="buy-btn vh-btn" id="vh-upgrade">Améliorer le village<small id="vh-cost">—</small></button>
-      </div>
 
       <div class="section">
         <div class="section-title">⛏️ Puissance de clic</div>
@@ -611,16 +629,6 @@
       </div>
 
       <div class="section">
-        <div class="section-title">🦸 Héros (Force unique)</div>
-        <div id="heroes"></div>
-      </div>
-
-      <div class="section">
-        <div class="section-title">⚔️ Pillage de villages</div>
-        <div class="raid-card" id="raid-card"></div>
-      </div>
-
-      <div class="section">
         <div class="section-title">⚒️ Prochaine Ère</div>
         <div class="evolve-card" id="evolve-card">
           <p style="font-size:13.5px;color:var(--text-dim);" id="evolve-desc">
@@ -634,6 +642,42 @@
         </div>
       </div>
 
+    </div>
+    </div>
+    </div>
+
+    <!-- ===================== VUE VILLAGE ===================== -->
+    <div class="view" id="view-village">
+    <div class="cols">
+
+      <!-- Colonne gauche : la base -->
+      <div class="panel">
+        <div class="section">
+          <div class="section-title">🏡 Mon Village</div>
+          <div class="village-scene" id="village-scene"></div>
+          <div class="village-stats">
+            <div>🏛️ Niveau du village : <b id="vh-level">1</b></div>
+            <div>🛡️ Défense : <b id="vh-def">0</b></div>
+            <div>⚔️ Troupes : <b id="vh-troops">0</b> héros &middot; 💪 Force <b id="vh-force">0</b></div>
+          </div>
+          <div class="garrison" id="garrison"></div>
+          <button class="buy-btn vh-btn" id="vh-upgrade">Améliorer le village<small id="vh-cost">—</small></button>
+        </div>
+      </div>
+
+      <!-- Colonne droite : troupes & guerre -->
+      <div class="panel">
+        <div class="section">
+          <div class="section-title">🦸 Héros (tes troupes)</div>
+          <div id="heroes"></div>
+        </div>
+        <div class="section">
+          <div class="section-title">⚔️ Pillage de villages</div>
+          <div class="raid-card" id="raid-card"></div>
+        </div>
+      </div>
+
+    </div>
     </div>
   </div>
 
@@ -789,6 +833,8 @@
     toast:        document.getElementById('toast'),
     soundToggle:  document.getElementById('sound-toggle'),
     resetBtn:     document.getElementById('reset-btn'),
+    topScore:     document.getElementById('top-score'),
+    topPps:       document.getElementById('top-pps'),
   };
 
   // Génère les lignes de bâtiments une seule fois (cachées tant que l'ère n'est pas atteinte)
@@ -840,6 +886,8 @@
   function render() {
     const mult = eraMult();
     el.score.textContent = fmt(state.score);
+    el.topScore.textContent = fmt(state.score);
+    el.topPps.textContent = fmt(effPPS());
     el.pps.textContent = fmt(effPPS()) + ' points par seconde (PPS)';
     el.clickTag.textContent = '+' + fmt(effClick()) + ' par clic';
     el.eraMult.textContent = mult > 1 ? 'Bonus d’ère : ×' + mult : '';
@@ -1368,12 +1416,22 @@
     }
   })();
 
+  // ===================== Onglets (vues) =====================
+  function showView(v) {
+    document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.view === v));
+    document.getElementById('view-prod').classList.toggle('active', v === 'prod');
+    document.getElementById('view-village').classList.toggle('active', v === 'village');
+    try { localStorage.setItem('civ-tab', v); } catch (e) {}
+  }
+  document.querySelectorAll('.tab').forEach(t => t.addEventListener('click', () => showView(t.dataset.view)));
+
   // ===================== Démarrage =====================
   applyEra();   // restaure l'ambiance de l'ère sauvegardée
   buildRaidScene();
   renderRaid();
   state.nextDefenseTime = Date.now() + 120000;   // 1re attaque ennemie ~2 min après l'ouverture
   render();
+  try { showView(localStorage.getItem('civ-tab') === 'village' ? 'village' : 'prod'); } catch (e) {}
 </script>
 </body>
 </html>
