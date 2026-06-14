@@ -542,8 +542,8 @@
 
   /* Mon Village */
   .village-scene {
-    position: relative; height: 165px; border-radius: 12px; overflow: hidden; margin-bottom: 12px;
-    background: linear-gradient(180deg, #8fb3cf 0%, #bcd6e2 58%, #cdbf95 100%);
+    position: relative; height: 190px; border-radius: 12px; overflow: hidden; margin-bottom: 12px;
+    background: radial-gradient(circle at 50% 30%, #cfe3ef 0%, #a9c6da 55%, #8fb3cf 100%);
   }
   .village-scene svg { width: 100%; height: 100%; display: block; }
   .village-stats { font-size: 13px; color: var(--text-dim); display: flex; flex-direction: column; gap: 4px; margin-bottom: 10px; }
@@ -1108,36 +1108,67 @@
   });
 
   // ===================== Mon Village =====================
-  function hutSVG(x, y, roof, wall) {
-    const bh = 104 - y;
-    return `<g stroke="#3a2f25" stroke-width="1.8" stroke-linejoin="round">
-      <rect x="${x}" y="${y}" width="28" height="${bh}" rx="2" fill="${wall}"/>
-      <polygon points="${x-3},${y} ${x+31},${y} ${x+14},${y-15}" fill="${roof}"/>
-      <rect x="${x+10}" y="92" width="8" height="12" fill="#5f4326"/>
-    </g>`;
+  // Rendu isométrique (vue 3D de dessus, façon Clash of Clans)
+  const ISO_W = 46, ISO_H = 23;            // largeur/hauteur d'une tuile iso
+  function darken(hex) {
+    const m = hex.replace('#', '');
+    if (m.length !== 6) return hex;
+    const f = i => Math.max(0, Math.round(parseInt(m.substr(i, 2), 16) * 0.78)).toString(16).padStart(2, '0');
+    return '#' + f(0) + f(2) + f(4);
   }
-  function townHallSVG(cx, topY, level, roof, wall) {
-    const w = 54, x = cx - w / 2, bottom = 104, bh = bottom - topY;
-    return `<g stroke="#3a2f25" stroke-width="2" stroke-linejoin="round">
-      <rect x="${x}" y="${topY}" width="${w}" height="${bh}" rx="3" fill="${wall}"/>
-      <polygon points="${x-5},${topY} ${x+w+5},${topY} ${cx},${topY-22}" fill="${roof}"/>
-      <rect x="${cx-7}" y="${bottom-20}" width="14" height="20" fill="#5f4326"/>
-      <rect x="${x+7}" y="${topY+10}" width="9" height="9" fill="#7aa0b5"/>
-      <rect x="${x+w-16}" y="${topY+10}" width="9" height="9" fill="#7aa0b5"/>
-      <line x1="${cx}" y1="${topY-22}" x2="${cx}" y2="${topY-38}" stroke="#3a2f25" stroke-width="2"/>
-      <polygon points="${cx},${topY-38} ${cx+16},${topY-34} ${cx},${topY-30}" fill="#cf4a3f" stroke="#3a2f25" stroke-width="1.5"/>
-    </g>
-    <text x="${cx}" y="${topY + bh/2 + 5}" text-anchor="middle" font-size="13" font-weight="700" fill="#3a2f25" font-family="sans-serif">Nv ${level}</text>`;
+  function isoBuilding(P, ptsStr, it, wallL, wallR) {
+    const { c, r, w, d, wallH, roofH, roof, th } = it;
+    const A = P(c, r), B = P(c + w, r), C = P(c + w, r + d), D = P(c, r + d);
+    const up = p => [p[0], p[1] - wallH];
+    const At = up(A), Bt = up(B), Ct = up(C), Dt = up(D);
+    const E = [ (At[0] + Ct[0]) / 2, (At[1] + Ct[1]) / 2 - roofH ];
+    const poly = (pts, fill) => `<polygon points="${ptsStr(pts)}" fill="${fill}" stroke="#3a2f25" stroke-width="1.4" stroke-linejoin="round"/>`;
+    let s = '';
+    s += poly([D, C, Ct, Dt], wallL);     // mur gauche (sombre)
+    s += poly([B, C, Ct, Bt], wallR);     // mur droit (clair)
+    s += poly([At, Dt, E], darken(roof)); // toit arrière-gauche
+    s += poly([At, Bt, E], darken(roof)); // toit arrière-droit
+    s += poly([Dt, Ct, E], roof);         // toit avant-gauche
+    s += poly([Bt, Ct, E], roof);         // toit avant-droit
+    if (th) {
+      const fy = E[1] - 14;
+      s += `<line x1="${E[0].toFixed(1)}" y1="${E[1].toFixed(1)}" x2="${E[0].toFixed(1)}" y2="${fy.toFixed(1)}" stroke="#3a2f25" stroke-width="2"/>`;
+      s += `<polygon points="${E[0].toFixed(1)},${fy.toFixed(1)} ${(E[0]+12).toFixed(1)},${(fy+3).toFixed(1)} ${E[0].toFixed(1)},${(fy+6).toFixed(1)}" fill="#cf4a3f" stroke="#3a2f25" stroke-width="1"/>`;
+    }
+    return s;
   }
   function villageSceneSVG() {
     const e = ERAS[state.era];
-    const roof = e.accent, hutRoof = e.beigeDark, wall = '#c9a877', ground = '#8a9a52';
-    const slots = [ {x:14,y:86}, {x:206,y:86}, {x:46,y:92}, {x:178,y:92}, {x:74,y:82}, {x:150,y:82} ];
-    let inner = `<path d="M0 96 Q130 82 260 96 L260 130 L0 130 Z" fill="${ground}" stroke="#5f6d38" stroke-width="2"/>`;
+    const ground = '#7faa4e', grassEdge = '#5f7d34', wallL = '#b39b73', wallR = '#cbb68f';
+    const cx = 140, cy = 42, N = 5, gH = 16;
+    const P = (c, r) => [cx + (c - r) * ISO_W / 2, cy + (c + r) * ISO_H / 2];
+    const ptsStr = pts => pts.map(p => p[0].toFixed(1) + ',' + p[1].toFixed(1)).join(' ');
+
+    // socle de l'île (terrain + épaisseur de terre)
+    const T = P(0, 0), R = P(N, 0), Bo = P(N, N), Lf = P(0, N);
+    const dn = p => [p[0], p[1] + gH];
+    let inner = '';
+    inner += `<polygon points="${ptsStr([R, Bo, dn(Bo), dn(R)])}" fill="#6f4a2a"/>`;
+    inner += `<polygon points="${ptsStr([Lf, Bo, dn(Bo), dn(Lf)])}" fill="#5a3c22"/>`;
+    inner += `<polygon points="${ptsStr([T, R, Bo, Lf])}" fill="${ground}" stroke="${grassEdge}" stroke-width="2" stroke-linejoin="round"/>`;
+    // quadrillage des tuiles
+    let grid = '';
+    for (let i = 1; i < N; i++) {
+      grid += `<line x1="${P(i,0)[0].toFixed(1)}" y1="${P(i,0)[1].toFixed(1)}" x2="${P(i,N)[0].toFixed(1)}" y2="${P(i,N)[1].toFixed(1)}"/>`;
+      grid += `<line x1="${P(0,i)[0].toFixed(1)}" y1="${P(0,i)[1].toFixed(1)}" x2="${P(N,i)[0].toFixed(1)}" y2="${P(N,i)[1].toFixed(1)}"/>`;
+    }
+    inner += `<g stroke="${grassEdge}" stroke-width="1" opacity=".3">${grid}</g>`;
+
+    // bâtiments (hôtel de ville au centre + huttes), triés du fond vers l'avant
     const huts = villageHuts();
-    for (let i = 0; i < huts; i++) inner += hutSVG(slots[i].x, slots[i].y, hutRoof, wall);
-    inner += townHallSVG(130, 48, state.townHall, roof, wall);
-    return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 260 130">${inner}</svg>`;
+    const slots = [ {c:0,r:0}, {c:4,r:0}, {c:0,r:4}, {c:4,r:4}, {c:0,r:2}, {c:4,r:2} ];
+    const items = [ { c:1.5, r:1.5, w:2, d:2, wallH:36, roofH:24, roof:e.accent, th:true } ];
+    for (let i = 0; i < huts; i++)
+      items.push({ c:slots[i].c, r:slots[i].r, w:1, d:1, wallH:18, roofH:14, roof:e.beigeDark, th:false });
+    items.sort((a, b) => ((a.c + a.w/2) + (a.r + a.d/2)) - ((b.c + b.w/2) + (b.r + b.d/2)));
+    for (const it of items) inner += isoBuilding(P, ptsStr, it, wallL, wallR);
+
+    return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 280 185">${inner}</svg>`;
   }
   function rebuildVillageVisual() {
     el.villageScene.innerHTML = villageSceneSVG();
